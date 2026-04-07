@@ -1,7 +1,14 @@
 import type { Metadata } from "next";
+import localFont from 'next/font/local';
 import "./globals.css";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
+
+const cabinetGrotesk = localFont({
+  src: '../../public/fonts/CabinetGrotesk-Variable.woff2',
+  variable: '--font-cabinet',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: "Pawan - Portfolio",
@@ -17,8 +24,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className="antialiased min-h-screen relative text-[#e5e5e5] pb-12">
+    <html lang="en" className={cabinetGrotesk.variable}>
+      <body className="antialiased min-h-screen relative text-[#e5e5e5] pb-12 font-cabinet">
         {/* Extremely subtle top atmospheric glow */}
         <div className="absolute top-0 left-0 right-0 h-[400px] bg-gradient-to-b from-neutral-800/10 to-transparent pointer-events-none" />
         
