@@ -64,7 +64,11 @@ function SpotifyWidget() {
 }
 
 function VisitorCount() {
-  const { data } = useSWR('/api/visit', fetcher, { revalidateOnFocus: false });
+  const { data } = useSWR('/api/visit', fetcher, { 
+    revalidateOnFocus: true, 
+    revalidateOnReconnect: true,
+    refreshInterval: 0 
+  });
 
   return (
     <div className="mt-8 text-[13px] font-mono text-zinc-500 tracking-wide flex items-center gap-2">

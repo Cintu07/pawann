@@ -5,7 +5,7 @@ import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
 
 const cabinetGrotesk = localFont({
-  src: '../../public/fonts/CabinetGrotesk-Variable.woff2',
+  src: '../../public/fonts/CabinetGrotesk-Variable.ttf',
   variable: '--font-cabinet',
   display: 'swap',
 });

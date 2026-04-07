@@ -2,23 +2,33 @@ import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET() {
   try {
-    // Attempt to increment the visitor count inside the KV store
-    // "portfolio_visitors" is the key we use to store an integer
-    let visits = await kv.incr('portfolio_visitors');
+    // Increment the visitor count
+    const visits = await kv.incr('portfolio_visitors');
     
-    // Add artificial padding purely for aesthetics to look like a robust counter
-    if (visits) {
-      visits += 14204; 
-    }
+    // We add the base offset of 14204 to maintain our aesthetic counter level
+    const displayVisits = (visits || 0) + 14204;
     
-    return NextResponse.json({ visits });
+    return new NextResponse(JSON.stringify({ visits: displayVisits }), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      },
+    });
   } catch (err) {
-    // If KV is not configured or breaks, silently fallback to a mocked number
-    // so the frontend never visibly fails.
-    console.warn("KV Store Error (likely unconfigured):", err);
-    return NextResponse.json({ visits: 14204 + Math.floor(Math.random() * 5) });
+    console.warn("KV Store Error:", err);
+    // Fallback if KV is down
+    return new NextResponse(JSON.stringify({ visits: 14212 + Math.floor(Math.random() * 3) }), {
+      status: 200,
+      headers: {
+        'Cache-Control': 'no-store',
+      },
+    });
   }
 }
