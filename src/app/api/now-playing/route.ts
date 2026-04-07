@@ -34,9 +34,16 @@ export async function GET() {
   }
 
   try {
-    const { access_token } = await getAccessToken();
+    const tokenData = await getAccessToken();
+    const access_token = tokenData.access_token;
+
+    if (!access_token) {
+      console.error("Spotify Auth Error:", tokenData);
+      return NextResponse.json({ isPlaying: false, message: "Failed to get access token" });
+    }
 
     // 1. Try fetching currently playing
+    console.log("Fetching currently playing...");
     const nowPlayingRes = await fetch(NOW_PLAYING_ENDPOINT, {
       headers: {
         Authorization: `Bearer ${access_token}`,
@@ -44,9 +51,12 @@ export async function GET() {
       cache: 'no-store',
     });
 
+    console.log("Currently Playing Status:", nowPlayingRes.status);
+
     if (nowPlayingRes.status === 200) {
       const song = await nowPlayingRes.json();
       if (song && song.item) {
+        console.log("Now Playing:", song.item.name);
         return new NextResponse(JSON.stringify({
           album: song.item.album.name,
           albumImageUrl: song.item.album.images[0].url,
@@ -65,6 +75,7 @@ export async function GET() {
     }
 
     // 2. Fallback to Recently Played if nothing is currently playing
+    console.log("Fetching recently played fallback...");
     const recentlyPlayedRes = await fetch(RECENTLY_PLAYED_ENDPOINT, {
       headers: {
         Authorization: `Bearer ${access_token}`,
@@ -72,10 +83,13 @@ export async function GET() {
       cache: 'no-store',
     });
 
+    console.log("Recently Played Status:", recentlyPlayedRes.status);
+
     if (recentlyPlayedRes.status === 200) {
       const data = await recentlyPlayedRes.json();
       if (data.items && data.items.length > 0) {
         const song = data.items[0].track;
+        console.log("Recently Played:", song.name);
         return new NextResponse(JSON.stringify({
           album: song.album.name,
           albumImageUrl: song.album.images[0].url,
@@ -93,6 +107,7 @@ export async function GET() {
       }
     }
 
+    console.log("No playback data found.");
     return new NextResponse(JSON.stringify({ isPlaying: false }), {
       status: 200,
       headers: {
