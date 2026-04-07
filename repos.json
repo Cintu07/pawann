@@ -1,0 +1,72 @@
+[
+  {
+    "name": "yarnix",
+    "desc": "context-engine",
+    "lang": "Python",
+    "url": "https://github.com/Cintu07/yarnix",
+    "stars": 0
+  },
+  {
+    "name": "helix",
+    "desc": "rotation-based memory that never decays",
+    "lang": "Python",
+    "url": "https://github.com/Cintu07/helix",
+    "stars": 1
+  },
+  {
+    "name": "kren",
+    "desc": "Zero-Copy Shared Memory IPC Library",
+    "lang": "Rust",
+    "url": "https://github.com/Cintu07/kren",
+    "stars": 4
+  },
+  {
+    "name": "talos",
+    "desc": "High-performance Layer 4 firewall using eBPF/XDP. Kernel-fast packet filtering with dynamic blacklisting, rate limiting, and real-time TUI dashboard. Written in Go and C.",
+    "lang": "Go",
+    "url": "https://github.com/Cintu07/talos",
+    "stars": 2
+  },
+  {
+    "name": "styx",
+    "desc": "Distributed membership system that refuses to lie. Returns probability distributions instead of booleans.",
+    "lang": "Go",
+    "url": "https://github.com/Cintu07/styx",
+    "stars": 3
+  },
+  {
+    "name": "ares",
+    "desc": "Inference-time reasoning framework. Trade compute for correctness.",
+    "lang": "Python",
+    "url": "https://github.com/Cintu07/ares",
+    "stars": 3
+  },
+  {
+    "name": "aegis",
+    "desc": "PostgreSQL wire-protocol proxy. Query logging, safe rewrites, read/write routing, rate limiting, and policy enforcement.",
+    "lang": "Go",
+    "url": "https://github.com/Cintu07/aegis",
+    "stars": 1
+  },
+  {
+    "name": "void",
+    "desc": " A fully serverless, browser-native IDE where the entire operating system runs client‑side via WebAssembly, Web Workers, and IndexedDB.",
+    "lang": "TypeScript",
+    "url": "https://github.com/Cintu07/void",
+    "stars": 3
+  },
+  {
+    "name": "CODEXINTERN-Python-Development",
+    "desc": "Python internship tasks - Data Analysis, ML, Matrix Operations",
+    "lang": "Python",
+    "url": "https://github.com/Cintu07/CODEXINTERN-Python-Development",
+    "stars": 0
+  },
+  {
+    "name": "dxlander",
+    "desc": "AI-Powered Zero-Configuration Deployment Platform",
+    "lang": "TypeScript",
+    "url": "https://github.com/Cintu07/dxlander",
+    "stars": 0
+  }
+]
