@@ -24,6 +24,9 @@ const getAccessToken = async () => {
   return response.json();
 };
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET() {
   if (!refresh_token) {
     return NextResponse.json({ isPlaying: false, message: "No refresh token" }, { status: 500 });
@@ -36,17 +39,29 @@ export async function GET() {
       headers: {
         Authorization: `Bearer ${access_token}`,
       },
-      next: { revalidate: 10 } // Revalidate every 10 seconds
+      cache: 'no-store',
     });
 
     if (response.status === 204 || response.status > 400) {
-      return NextResponse.json({ isPlaying: false });
+      return new NextResponse(JSON.stringify({ isPlaying: false }), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+        },
+      });
     }
 
     const song = await response.json();
 
     if (song.item === null) {
-      return NextResponse.json({ isPlaying: false });
+      return new NextResponse(JSON.stringify({ isPlaying: false }), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+        },
+      });
     }
 
     const isPlaying = song.is_playing;
@@ -56,13 +71,19 @@ export async function GET() {
     const albumImageUrl = song.item.album.images[0].url;
     const songUrl = song.item.external_urls.spotify;
 
-    return NextResponse.json({
+    return new NextResponse(JSON.stringify({
       album,
       albumImageUrl,
       artist,
       isPlaying,
       songUrl,
       title,
+    }), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+      },
     });
   } catch (err) {
     console.error("Spotify API error", err);
