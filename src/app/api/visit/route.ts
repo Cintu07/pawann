@@ -6,13 +6,10 @@ export const revalidate = 0;
 
 export async function GET() {
   try {
-    // Increment the visitor count
-    const visits = await kv.incr('portfolio_visitors');
+    // Increment the visitor count from zero
+    const visits = await kv.incr('portfolio_visits_fresh');
     
-    // We add the base offset of 14204 to maintain our aesthetic counter level
-    const displayVisits = (visits || 0) + 14204;
-    
-    return new NextResponse(JSON.stringify({ visits: displayVisits }), {
+    return new NextResponse(JSON.stringify({ visits }), {
       status: 200,
       headers: {
         'Content-Type': 'application/json',
@@ -24,7 +21,7 @@ export async function GET() {
   } catch (err) {
     console.warn("KV Store Error:", err);
     // Fallback if KV is down
-    return new NextResponse(JSON.stringify({ visits: 14212 + Math.floor(Math.random() * 3) }), {
+    return new NextResponse(JSON.stringify({ visits: 0 }), {
       status: 200,
       headers: {
         'Cache-Control': 'no-store',
