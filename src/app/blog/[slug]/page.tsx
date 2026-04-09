@@ -205,7 +205,7 @@ export default function BlogPost() {
             </span>
           </div>
 
-          <h1 className="font-serif text-[42px] md:text-[64px] font-medium text-white mb-8 tracking-tighter leading-[1] text-balance">
+          <h1 className="text-[42px] md:text-[64px] font-medium text-white mb-8 tracking-tighter leading-[1] text-balance">
             {post.title}
           </h1>
 
@@ -223,14 +223,14 @@ export default function BlogPost() {
                <img 
                 src={post.imageURL} 
                 alt={post.title}
-                className="w-full h-full object-cover opacity-90 transition-opacity duration-700"
+                className="w-full h-full object-cover transition-opacity duration-700 hover:opacity-100"
                />
                <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
             </div>
           )}
 
           {/* Article Body */}
-          <div className="blog-content prose prose-invert font-sans">
+          <div className="blog-content prose prose-invert">
             {renderContent(post.content)}
           </div>
         </motion.article>
