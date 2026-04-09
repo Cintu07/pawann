@@ -6,9 +6,9 @@ const experience = [
   {
     company: "Cortex",
     role: "Founding Engineer",
-    period: "Feb 2026 - Present",
-    description: "Architecting and building core infrastructure for next-generation voice agents. Handling extreme low-latency pipelines and scaling ML inference workloads.",
-    stack: ["go", "typescript", "kubernetes", "webrtc"]
+    period: "Dec 2025 - Present",
+    description: "Architecting low-latency voice agent infrastructure using ElevenLabs ConvAI and Twilio. Engineered real-time WebSocket pipelines for seamless telephony streaming and custom audio DSP libraries for sub-20ms frame mixing. Developed a multi-tenant dashboard for real-time call monitoring and order management.",
+    stack: ["go", "typescript", "webrtc", "twilio", "dsp"]
   },
   {
     company: "Freelance",
