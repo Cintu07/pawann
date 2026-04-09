@@ -92,20 +92,20 @@ export default function BlogPost() {
       }
 
       if (line.startsWith('# ')) {
-        return <h1 key={i} className="font-serif text-[44px] md:text-[56px] font-medium text-white mt-16 mb-8 tracking-tighter leading-[1.1]">{line.replace('# ', '')}</h1>;
+        return <h1 key={i} className="text-[36px] md:text-[48px] font-bold text-white mt-12 mb-8 tracking-tighter leading-tight">{line.replace('# ', '')}</h1>;
       }
       
       if (line.startsWith('## ')) {
         const title = line.replace('## ', '');
         const id = title.toLowerCase().replace(/[^\w\s]/g, '').replace(/\s+/g, '-');
-        return <h2 id={id} key={i} className="font-serif text-[28px] md:text-[32px] font-medium text-neutral-100 mt-16 mb-6 tracking-tight scroll-mt-24">{title}</h2>;
+        return <h2 id={id} key={i} className="text-[24px] md:text-[28px] font-bold text-neutral-100 mt-12 mb-6 tracking-tight scroll-mt-24">{title}</h2>;
       }
 
       if (line.startsWith('> ')) {
         return (
-          <div key={i} className="my-10 p-8 rounded-2xl bg-[#1a1a2e]/40 border border-[#2d2d4d]/50 backdrop-blur-sm relative overflow-hidden group">
-            <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500/50" />
-            <p className="text-[18px] md:text-[20px] text-indigo-100 italic font-serif leading-relaxed relative z-10">
+          <div key={i} className="my-8 p-6 rounded-2xl bg-white/[0.03] border border-white/[0.05] relative overflow-hidden group">
+            <div className="absolute top-0 left-0 w-1 h-full bg-neutral-600" />
+            <p className="text-[16px] md:text-[18px] text-neutral-300 italic leading-relaxed relative z-10">
               {line.replace('> ', '')}
             </p>
           </div>
@@ -219,18 +219,18 @@ export default function BlogPost() {
 
           {/* Hero Image */}
           {post.imageURL && (
-            <div className="relative aspect-[16/10] mb-16 rounded-2xl overflow-hidden shadow-2xl group border border-white/[0.05]">
+            <div className="relative aspect-[16/10] mb-12 rounded-2xl overflow-hidden shadow-2xl border border-white/[0.05]">
                <img 
                 src={post.imageURL} 
                 alt={post.title}
-                className="w-full h-full object-cover grayscale opacity-80 group-hover:grayscale-0 group-hover:opacity-100 transition-all duration-1000 scale-105 group-hover:scale-100"
+                className="w-full h-full object-cover opacity-90 transition-opacity duration-700"
                />
                <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
             </div>
           )}
 
           {/* Article Body */}
-          <div className="blog-content prose prose-invert prose-headings:font-serif">
+          <div className="blog-content prose prose-invert font-sans">
             {renderContent(post.content)}
           </div>
         </motion.article>

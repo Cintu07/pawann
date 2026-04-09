@@ -29,19 +29,15 @@ export default function RootLayout({
         {/* Extremely subtle top atmospheric glow */}
         <div className="absolute top-0 left-0 right-0 h-[400px] bg-gradient-to-b from-neutral-800/10 to-transparent pointer-events-none" />
         
-        {/* Core Container Wrapper - Width is now handled by pages */}
-        <div className="w-full mx-auto px-6 py-20 flex flex-col min-h-[90vh] relative z-10">
-          <div className="w-full max-w-[700px] mx-auto">
-            <Navigation />
-          </div>
+        {/* Core Container Wrapper - Reverting to original centered logic */}
+        <div className="w-full max-w-[700px] mx-auto px-6 py-20 flex flex-col min-h-[90vh] relative z-10">
+          <Navigation />
           
-          <div className="flex-1 w-full flex flex-col">
+          <div className="flex-1 w-full flex flex-col justify-center">
             {children}
           </div>
           
-          <div className="w-full max-w-[700px] mx-auto">
-            <Footer />
-          </div>
+          <Footer />
         </div>
       </body>
     </html>
