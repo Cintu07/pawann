@@ -8,6 +8,8 @@ import { ChevronLeft, Clock } from "lucide-react";
 import React from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 
 export default function BlogPost() {
   const params = useParams();
@@ -89,12 +91,12 @@ export default function BlogPost() {
             li: ({node, ...props}) => <li className="text-neutral-400 leading-relaxed text-[16px] mb-2 list-none flex gap-3"><span className="text-neutral-600 mt-1">•</span><span {...props} /></li>,
             code: ({node, className, children, ...props}: any) => {
               const match = /language-(\w+)/.exec(className || '');
-              const isInline = !match;
+              const isBlock = !!match || String(children).includes('\n') || String(children).length > 60 || String(children).startsWith('THEOREM');
               
-              if (isInline) {
+              if (!isBlock) {
                 return (
                   <code 
-                    className="inline-flex items-center px-1.5 py-0 rounded-md bg-red-500/10 text-red-500 text-[0.85em] border border-red-500/10 font-mono align-baseline mx-0.5 leading-none" 
+                    className="inline px-1.5 py-0.5 rounded-md bg-red-500/10 text-red-500 text-[0.9em] border border-red-500/10 font-mono align-baseline mx-0.5" 
                     {...props}
                   >
                     {children}
@@ -103,15 +105,26 @@ export default function BlogPost() {
               }
 
               return (
-                <div className="relative group my-8">
-                    <pre className="p-6 rounded-xl bg-[#0d0d0d] border border-white/[0.05] overflow-x-auto shadow-2xl">
-                        <code className="text-[13px] font-mono text-zinc-300 leading-relaxed" {...props}>
-                            {children}
-                        </code>
-                    </pre>
-                    <div className="absolute top-4 right-4 text-[9px] font-mono uppercase tracking-widest text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity">
-                        {match[1]}
-                    </div>
+                <div className="my-8 rounded-xl overflow-hidden border border-white/[0.05] shadow-2xl bg-[#0d0d0d]">
+                    <SyntaxHighlighter
+                        language={match ? match[1] : 'text'}
+                        style={vscDarkPlus}
+                        PreTag="div"
+                        codeTagProps={{
+                            style: {
+                                fontSize: '13px',
+                                fontFamily: 'var(--font-mono)',
+                                lineHeight: '1.6'
+                            }
+                        }}
+                        customStyle={{
+                            margin: 0,
+                            padding: '1.5rem',
+                            background: 'transparent'
+                        }}
+                    >
+                        {String(children).replace(/\n$/, '')}
+                    </SyntaxHighlighter>
                 </div>
               );
             },
@@ -124,7 +137,7 @@ export default function BlogPost() {
             hr: ({node, ...props}) => <hr className="my-12 border-white/[0.08]" {...props} />,
             img: ({node, ...props}: any) => (
                 <div className="my-10 rounded-2xl overflow-hidden border border-white/[0.05]">
-                    <img className="w-full object-cover" {...props} alt={props.alt || "blog image"} />
+                    <img className="w-full object-contain max-h-[500px]" {...props} alt={props.alt || "blog image"} />
                 </div>
             )
           }}
