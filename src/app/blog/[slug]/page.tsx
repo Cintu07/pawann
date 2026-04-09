@@ -88,13 +88,13 @@ export default function BlogPost() {
             p: ({node, ...props}) => <p className="text-neutral-400 leading-relaxed text-[16px] mb-6" {...props} />,
             li: ({node, ...props}) => <li className="text-neutral-400 leading-relaxed text-[16px] mb-2 list-none flex gap-3"><span className="text-neutral-600 mt-1">•</span><span {...props} /></li>,
             code: ({node, className, children, ...props}: any) => {
-              const isInline = !node.position?.start.line || node.position.start.line === node.position.end.line;
               const match = /language-(\w+)/.exec(className || '');
+              const isInline = !match;
               
-              if (!className || !match) {
+              if (isInline) {
                 return (
                   <code 
-                    className="inline-flex items-center px-1.5 py-0 rounded-md bg-red-500/10 text-red-400 text-[0.9em] border border-red-500/10 font-mono align-baseline leading-none mx-0.5" 
+                    className="inline-flex items-center px-1.5 py-0 rounded-md bg-red-500/10 text-red-500 text-[0.85em] border border-red-500/10 font-mono align-baseline mx-0.5 leading-none" 
                     {...props}
                   >
                     {children}
