@@ -4,13 +4,12 @@ import { motion, type Variants, type Easing } from "framer-motion";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { posts } from "../data";
-import { ChevronLeft, Share2, Clock } from "lucide-react";
-import React, { useEffect, useState } from "react";
+import { ChevronLeft } from "lucide-react";
+import React from "react";
 
 export default function BlogPost() {
   const params = useParams();
   const post = posts.find((p) => p.slug === params.slug);
-  const [activeSection, setActiveSection] = useState("");
 
   const customEasing: Easing = [0.25, 0.1, 0.25, 1];
   const fade: Variants = {
@@ -22,38 +21,9 @@ export default function BlogPost() {
     }
   };
 
-  // Extract ToC items
-  const tocItems = post?.content
-    .split('\n')
-    .filter(line => line.startsWith('## '))
-    .map(line => ({
-      title: line.replace('## ', ''),
-      id: line.replace('## ', '').toLowerCase().replace(/[^\w\s]/g, '').replace(/\s+/g, '-')
-    })) || [];
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            setActiveSection(entry.target.id);
-          }
-        });
-      },
-      { rootMargin: '-20% 0px -70% 0px' }
-    );
-
-    tocItems.forEach(({ id }) => {
-      const el = document.getElementById(id);
-      if (el) observer.observe(el);
-    });
-
-    return () => observer.disconnect();
-  }, [tocItems]);
-
   if (!post) {
     return (
-      <div className="flex flex-col items-center justify-center py-20">
+      <div className="flex flex-col items-center justify-center py-20 max-w-[700px] mx-auto w-full">
         <h1 className="text-2xl text-white mb-4">Post not found</h1>
         <Link href="/blog" className="text-neutral-500 hover:text-white transition-colors uppercase tracking-widest text-xs font-mono flex items-center gap-2">
           <ChevronLeft className="w-4 h-4" /> Back to blog
@@ -92,13 +62,13 @@ export default function BlogPost() {
       }
 
       if (line.startsWith('# ')) {
-        return <h1 key={i} className="text-[36px] md:text-[48px] font-bold text-white mt-12 mb-8 tracking-tighter leading-tight">{line.replace('# ', '')}</h1>;
+        return <h1 key={i} className="text-[32px] md:text-[40px] font-bold text-white mt-12 mb-8 tracking-tighter leading-tight">{line.replace('# ', '')}</h1>;
       }
       
       if (line.startsWith('## ')) {
         const title = line.replace('## ', '');
         const id = title.toLowerCase().replace(/[^\w\s]/g, '').replace(/\s+/g, '-');
-        return <h2 id={id} key={i} className="text-[24px] md:text-[28px] font-bold text-neutral-100 mt-12 mb-6 tracking-tight scroll-mt-24">{title}</h2>;
+        return <h2 id={id} key={i} className="text-[20px] md:text-[24px] font-bold text-neutral-100 mt-12 mb-6 tracking-tight scroll-mt-24">{title}</h2>;
       }
 
       if (line.startsWith('> ')) {
@@ -118,7 +88,7 @@ export default function BlogPost() {
 
       if (line.startsWith('- ')) {
         return (
-          <div key={i} className="flex gap-4 mb-4 text-neutral-400 leading-relaxed text-[17px] pl-2">
+          <div key={i} className="flex gap-3 mb-4 text-neutral-400 leading-relaxed text-[16px] pl-2">
             <span className="text-neutral-600 mt-1">•</span>
             <span>{line.replace('- ', '')}</span>
           </div>
@@ -130,7 +100,7 @@ export default function BlogPost() {
       const parts = line.split('`');
       if (parts.length > 1) {
         return (
-          <p key={i} className="text-neutral-400 leading-relaxed text-[17px] mb-6 tracking-tight">
+          <p key={i} className="text-neutral-400 leading-relaxed text-[16px] mb-6">
             {parts.map((part, index) => 
               index % 2 === 1 ? (
                 <code key={index} className="px-1.5 py-0.5 rounded bg-white/[0.07] text-neutral-200 font-mono text-[0.85em] border border-white/[0.05]">
@@ -142,99 +112,54 @@ export default function BlogPost() {
         );
       }
 
-      return <p key={i} className="text-neutral-400 leading-relaxed text-[17px] mb-6 tracking-tight font-sans">{line}</p>;
+      return <p key={i} className="text-neutral-400 leading-relaxed text-[16px] mb-6">{line}</p>;
     }).filter(el => el !== null);
   };
 
   return (
-    <div className="w-full max-w-[1240px] mx-auto px-6 lg:px-12">
-      {/* Top Header Navigation */}
-      <div className="flex items-center justify-between py-8 border-b border-white/[0.05] mb-12">
-        <Link href="/blog" className="flex items-center gap-2 text-[12px] font-mono text-neutral-500 hover:text-white transition-all uppercase tracking-[0.2em] group">
-          <ChevronLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" /> 
-          <span className="opacity-60">Back</span> 
-          <span className="text-neutral-400">pawann/blog</span>
-        </Link>
-        <div className="flex items-center gap-6">
-           <Link href="/" className="text-[11px] font-mono text-neutral-500 hover:text-white uppercase tracking-widest transition-colors">Home</Link>
-           <Link href="/blog" className="text-[11px] font-mono text-neutral-500 hover:text-white uppercase tracking-widest transition-colors">All Posts</Link>
+    <motion.article
+      initial="hidden"
+      animate="visible"
+      variants={fade}
+      className="max-w-[700px] mx-auto w-full pb-20"
+    >
+      <Link href="/blog" className="inline-flex items-center gap-2 text-[12px] font-mono text-neutral-500 hover:text-white transition-colors uppercase tracking-[0.2em] mb-12">
+        <ChevronLeft className="w-4 h-4" /> Back to blog
+      </Link>
+
+      {/* Hero Image */}
+      {post.imageURL && (
+        <div className="relative aspect-[16/10] mb-10 rounded-2xl overflow-hidden shadow-2xl border border-white/[0.05]">
+            <img 
+            src={post.imageURL} 
+            alt={post.title}
+            className="w-full h-full object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
         </div>
+      )}
+
+      {/* Metadata */}
+      <div className="flex gap-2 mb-6 flex-wrap">
+        {post.tags.map(tag => (
+          <span key={tag} className="text-[10px] uppercase tracking-widest text-neutral-500 font-mono px-2.5 py-1 rounded bg-white/[0.03] border border-white/[0.05]">
+            {tag}
+          </span>
+        ))}
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-16 relative">
-        {/* Sticky Left Sidebar ToC */}
-        <aside className="hidden lg:block w-[240px] shrink-0">
-          <div className="sticky top-24">
-            <div className="mb-8">
-               <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-neutral-600 mb-4">Contents</p>
-               <nav className="flex flex-col gap-4">
-                  {tocItems.map((item) => (
-                    <a
-                      key={item.id}
-                      href={`#${item.id}`}
-                      className={`text-[13px] leading-snug transition-all duration-300 hover:text-white ${
-                        activeSection === item.id ? "text-white translate-x-1" : "text-neutral-500"
-                      }`}
-                    >
-                      {item.title}
-                    </a>
-                  ))}
-               </nav>
-            </div>
-            <div className="pt-8 border-t border-white/[0.05]">
-              <button className="flex items-center gap-2 text-[11px] font-mono text-neutral-600 hover:text-neutral-400 transition-colors uppercase tracking-widest">
-                <Share2 className="w-3.5 h-3.5" /> Share
-              </button>
-            </div>
-          </div>
-        </aside>
+      <h1 className="text-[32px] md:text-[44px] font-semibold text-white mb-6 tracking-tight leading-[1.1] text-balance">
+        {post.title}
+      </h1>
 
-        {/* Main Content Area */}
-        <motion.article
-          initial="hidden"
-          animate="visible"
-          variants={fade}
-          className="flex-1 max-w-[760px]"
-        >
-          {/* Metadata */}
-          <div className="flex items-center gap-4 mb-6">
-            <span className="text-[11px] font-mono uppercase tracking-[0.25em] text-neutral-500">{post.date}</span>
-            <span className="w-1 h-1 rounded-full bg-neutral-700" />
-            <span className="flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-[0.25em] text-neutral-500">
-              <Clock className="w-3 h-3" /> 12 MIN READ
-            </span>
-          </div>
-
-          <h1 className="text-[42px] md:text-[64px] font-medium text-white mb-8 tracking-tighter leading-[1] text-balance">
-            {post.title}
-          </h1>
-
-          <div className="flex gap-2 mb-12 flex-wrap">
-            {post.tags.map(tag => (
-              <span key={tag} className="text-[10px] uppercase tracking-widest text-neutral-500 font-mono px-2.5 py-1 rounded bg-white/[0.03] border border-white/[0.05]">
-                {tag}
-              </span>
-            ))}
-          </div>
-
-          {/* Hero Image */}
-          {post.imageURL && (
-            <div className="relative aspect-[16/10] mb-12 rounded-2xl overflow-hidden shadow-2xl border border-white/[0.05]">
-               <img 
-                src={post.imageURL} 
-                alt={post.title}
-                className="w-full h-full object-cover transition-opacity duration-700 hover:opacity-100"
-               />
-               <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
-            </div>
-          )}
-
-          {/* Article Body */}
-          <div className="blog-content prose prose-invert">
-            {renderContent(post.content)}
-          </div>
-        </motion.article>
+      <div className="flex items-center gap-4 mb-12">
+        <span className="text-[11px] font-mono uppercase tracking-[0.25em] text-neutral-500">{post.date}</span>
       </div>
-    </div>
+
+      {/* Article Body */}
+      <div className="blog-content prose prose-invert">
+        {renderContent(post.content)}
+      </div>
+    </motion.article>
   );
 }
