@@ -1,0 +1,96 @@
+<svg width="100%" viewBox="0 0 680 540" xmlns="http://www.w3.org/2000/svg" role="img">
+<title>STYX query path</title>
+<desc>Flowchart showing how witness reports flow through trust registry, aggregation, partition detection, and finality check before reaching the oracle output</desc>
+
+<defs>
+  <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+    <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </marker>
+  <style>
+    text { font-family: system-ui, sans-serif; fill: #1a1a1a; }
+    .label-sm { font-size: 12px; }
+    .label-md { font-size: 13px; font-weight: 500; }
+    .box-gray { fill: #f3f2ee; stroke: #888780; stroke-width: 0.5; }
+    .box-teal { fill: #e1f5ee; stroke: #0f6e56; stroke-width: 0.5; }
+    .box-amber { fill: #faeeda; stroke: #854f0b; stroke-width: 0.5; }
+    .box-coral { fill: #faece7; stroke: #993c1d; stroke-width: 0.5; }
+    .box-purple { fill: #eeedfe; stroke: #534ab7; stroke-width: 0.5; }
+    .text-teal { fill: #085041; }
+    .text-amber { fill: #633806; }
+    .text-coral { fill: #4a1b0c; }
+    .text-purple { fill: #26215c; }
+    .text-gray { fill: #2c2c2a; }
+    .arr { fill: none; stroke: #888780; stroke-width: 1.2; }
+    .side-label { font-size: 11px; fill: #5f5e5a; }
+  </style>
+</defs>
+
+<!-- Witness inputs -->
+<rect class="box-gray" x="40" y="40" width="110" height="44" rx="8"/>
+<text class="label-md text-gray" x="95" y="67" text-anchor="middle">Witness A</text>
+
+<rect class="box-gray" x="40" y="108" width="110" height="44" rx="8"/>
+<text class="label-md text-gray" x="95" y="135" text-anchor="middle">Witness B</text>
+
+<rect class="box-gray" x="40" y="176" width="110" height="44" rx="8"/>
+<text class="label-md text-gray" x="95" y="203" text-anchor="middle">Witness C</text>
+
+<!-- Lines from witnesses to trust registry -->
+<line x1="150" y1="62" x2="218" y2="118" class="arr" marker-end="url(#arrow)"/>
+<line x1="150" y1="130" x2="218" y2="130" class="arr" marker-end="url(#arrow)"/>
+<line x1="150" y1="198" x2="218" y2="142" class="arr" marker-end="url(#arrow)"/>
+
+<!-- Trust registry -->
+<rect class="box-teal" x="220" y="100" width="150" height="58" rx="8"/>
+<text class="label-md text-teal" x="295" y="124" text-anchor="middle">Trust registry</text>
+<text class="label-sm text-teal" x="295" y="143" text-anchor="middle">Weights by trust score</text>
+
+<!-- Arrow to aggregator -->
+<line x1="370" y1="129" x2="430" y2="129" class="arr" marker-end="url(#arrow)"/>
+
+<!-- Aggregator -->
+<rect class="box-teal" x="432" y="100" width="150" height="58" rx="8"/>
+<text class="label-md text-teal" x="507" y="124" text-anchor="middle">Aggregator</text>
+<text class="label-sm text-teal" x="507" y="143" text-anchor="middle">Merge + track disagreement</text>
+
+<!-- Arrow down to partition check -->
+<line x1="507" y1="158" x2="507" y2="218" class="arr" marker-end="url(#arrow)"/>
+
+<!-- Partition detector -->
+<rect class="box-amber" x="432" y="220" width="150" height="58" rx="8"/>
+<text class="label-md text-amber" x="507" y="244" text-anchor="middle">Partition check</text>
+<text class="label-sm text-amber" x="507" y="263" text-anchor="middle">Split &gt; 40%? Refuse</text>
+
+<!-- Refuse branch -->
+<line x1="432" y1="249" x2="350" y2="249" class="arr" marker-end="url(#arrow)"/>
+<text class="side-label" x="392" y="242" text-anchor="middle">split?</text>
+
+<rect class="box-coral" x="220" y="220" width="128" height="58" rx="8"/>
+<text class="label-md text-coral" x="284" y="244" text-anchor="middle">Refused</text>
+<text class="label-sm text-coral" x="284" y="263" text-anchor="middle">Partition detected</text>
+
+<!-- Arrow down to finality -->
+<line x1="507" y1="278" x2="507" y2="338" class="arr" marker-end="url(#arrow)"/>
+
+<!-- Finality engine -->
+<rect class="box-amber" x="432" y="340" width="150" height="58" rx="8"/>
+<text class="label-md text-amber" x="507" y="364" text-anchor="middle">Finality check</text>
+<text class="label-sm text-amber" x="507" y="383" text-anchor="middle">Already dead? Irreversible</text>
+
+<!-- Dead branch -->
+<line x1="432" y1="369" x2="350" y2="369" class="arr" marker-end="url(#arrow)"/>
+<text class="side-label" x="392" y="362" text-anchor="middle">dead?</text>
+
+<rect class="box-coral" x="220" y="340" width="128" height="58" rx="8"/>
+<text class="label-md text-coral" x="284" y="364" text-anchor="middle">Dead</text>
+<text class="label-sm text-coral" x="284" y="383" text-anchor="middle">Permanent, no recovery</text>
+
+<!-- Arrow down to oracle output -->
+<line x1="507" y1="398" x2="507" y2="455" class="arr" marker-end="url(#arrow)"/>
+
+<!-- Oracle output -->
+<rect class="box-purple" x="382" y="457" width="250" height="58" rx="8"/>
+<text class="label-md text-purple" x="507" y="481" text-anchor="middle">QueryResult</text>
+<text class="label-sm text-purple" x="507" y="500" text-anchor="middle">{alive%, dead%, unknown%, refused}</text>
+
+</svg>

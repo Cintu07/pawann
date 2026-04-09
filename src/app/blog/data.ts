@@ -25,6 +25,8 @@ STYX is a distributed membership system that returns a probability distribution 
 
 This is a writeup of how it was built and why specific decisions were made.
 
+![STYX Architecture Diagram](/styx-diagram.svg)
+
 ---
 
 ## The core problem

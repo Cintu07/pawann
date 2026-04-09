@@ -3,6 +3,7 @@ import localFont from 'next/font/local';
 import "./globals.css";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
+import BackgroundMusic from "@/components/BackgroundMusic";
 
 const cabinetGrotesk = localFont({
   src: '../../public/fonts/CabinetGrotesk-Variable.ttf',
@@ -39,6 +40,8 @@ export default function RootLayout({
           
           <Footer />
         </div>
+        
+        <BackgroundMusic />
       </body>
     </html>
   );
