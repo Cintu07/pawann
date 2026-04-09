@@ -87,17 +87,21 @@ export default function BlogPost() {
             h2: ({node, ...props}) => <h2 className="text-[20px] md:text-[24px] font-bold text-neutral-100 mt-12 mb-6 tracking-tight" {...props} />,
             p: ({node, ...props}) => <p className="text-neutral-400 leading-relaxed text-[16px] mb-6" {...props} />,
             li: ({node, ...props}) => <li className="text-neutral-400 leading-relaxed text-[16px] mb-2 list-none flex gap-3"><span className="text-neutral-600 mt-1">•</span><span {...props} /></li>,
-            code: ({node, inline, className, children, ...props}: any) => {
-              if (inline) {
+            code: ({node, className, children, ...props}: any) => {
+              const isInline = !node.position?.start.line || node.position.start.line === node.position.end.line;
+              const match = /language-(\w+)/.exec(className || '');
+              
+              if (!className || !match) {
                 return (
                   <code 
-                    className="px-2 py-0.5 rounded-full bg-red-500/10 text-red-500 text-[0.85em] border border-red-500/20 font-mono" 
+                    className="inline-flex items-center px-1.5 py-0 rounded-md bg-red-500/10 text-red-400 text-[0.9em] border border-red-500/10 font-mono align-baseline leading-none mx-0.5" 
                     {...props}
                   >
                     {children}
                   </code>
                 );
               }
+
               return (
                 <div className="relative group my-8">
                     <pre className="p-6 rounded-xl bg-[#0d0d0d] border border-white/[0.05] overflow-x-auto shadow-2xl">
@@ -106,7 +110,7 @@ export default function BlogPost() {
                         </code>
                     </pre>
                     <div className="absolute top-4 right-4 text-[9px] font-mono uppercase tracking-widest text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity">
-                        source
+                        {match[1]}
                     </div>
                 </div>
               );
