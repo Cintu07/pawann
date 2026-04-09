@@ -87,6 +87,7 @@ export default function Projects() {
       initial="hidden"
       animate="visible"
       variants={fade}
+      className="max-w-[700px] mx-auto w-full"
     >
       <div className="flex items-center gap-3 mb-10">
         <div className="h-[2px] w-6 bg-gradient-to-r from-neutral-300 to-transparent rounded" />

@@ -4,11 +4,13 @@ import { motion, type Variants, type Easing } from "framer-motion";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { posts } from "../data";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, Share2, Clock } from "lucide-react";
+import React, { useEffect, useState } from "react";
 
 export default function BlogPost() {
   const params = useParams();
   const post = posts.find((p) => p.slug === params.slug);
+  const [activeSection, setActiveSection] = useState("");
 
   const customEasing: Easing = [0.25, 0.1, 0.25, 1];
   const fade: Variants = {
@@ -19,6 +21,35 @@ export default function BlogPost() {
       transition: { duration: 0.8, ease: customEasing } 
     }
   };
+
+  // Extract ToC items
+  const tocItems = post?.content
+    .split('\n')
+    .filter(line => line.startsWith('## '))
+    .map(line => ({
+      title: line.replace('## ', ''),
+      id: line.replace('## ', '').toLowerCase().replace(/[^\w\s]/g, '').replace(/\s+/g, '-')
+    })) || [];
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            setActiveSection(entry.target.id);
+          }
+        });
+      },
+      { rootMargin: '-20% 0px -70% 0px' }
+    );
+
+    tocItems.forEach(({ id }) => {
+      const el = document.getElementById(id);
+      if (el) observer.observe(el);
+    });
+
+    return () => observer.disconnect();
+  }, [tocItems]);
 
   if (!post) {
     return (
@@ -31,7 +62,6 @@ export default function BlogPost() {
     );
   }
 
-  // Simple Markdown-to-JSX parser for basic styles
   const renderContent = (content: string) => {
     const lines = content.split('\n');
     let inCodeBlock = false;
@@ -44,7 +74,7 @@ export default function BlogPost() {
           const code = codeContent.join('\n');
           codeContent = [];
           return (
-            <pre key={i} className="my-6 p-4 rounded-xl bg-white/[0.03] border border-white/[0.05] overflow-x-auto">
+            <pre key={i} className="my-8 p-5 rounded-xl bg-white/[0.03] border border-white/[0.05] overflow-x-auto shadow-2xl">
               <code className="text-[13px] font-mono text-neutral-300 leading-relaxed">
                 {code}
               </code>
@@ -62,74 +92,149 @@ export default function BlogPost() {
       }
 
       if (line.startsWith('# ')) {
-        return <h1 key={i} className="text-[32px] font-semibold text-white mt-12 mb-6 tracking-tight leading-tight">{line.replace('# ', '')}</h1>;
+        return <h1 key={i} className="font-serif text-[44px] md:text-[56px] font-medium text-white mt-16 mb-8 tracking-tighter leading-[1.1]">{line.replace('# ', '')}</h1>;
       }
+      
       if (line.startsWith('## ')) {
-        return <h2 key={i} className="text-[24px] font-semibold text-neutral-100 mt-10 mb-5 tracking-tight">{line.replace('## ', '')}</h2>;
-      }
-      if (line.startsWith('---')) {
-        return <hr key={i} className="my-10 border-white/[0.08]" />;
-      }
-      if (line.startsWith('- ')) {
-        return <div key={i} className="flex gap-3 mb-3 text-neutral-400 leading-relaxed text-[16px]">
-          <span className="text-neutral-600">•</span>
-          <span>{line.replace('- ', '')}</span>
-        </div>;
-      }
-      if (line.trim() === '') {
-        return <div key={i} className="h-4" />;
+        const title = line.replace('## ', '');
+        const id = title.toLowerCase().replace(/[^\w\s]/g, '').replace(/\s+/g, '-');
+        return <h2 id={id} key={i} className="font-serif text-[28px] md:text-[32px] font-medium text-neutral-100 mt-16 mb-6 tracking-tight scroll-mt-24">{title}</h2>;
       }
 
-      // Simple handling for inline backticks
+      if (line.startsWith('> ')) {
+        return (
+          <div key={i} className="my-10 p-8 rounded-2xl bg-[#1a1a2e]/40 border border-[#2d2d4d]/50 backdrop-blur-sm relative overflow-hidden group">
+            <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500/50" />
+            <p className="text-[18px] md:text-[20px] text-indigo-100 italic font-serif leading-relaxed relative z-10">
+              {line.replace('> ', '')}
+            </p>
+          </div>
+        );
+      }
+
+      if (line.startsWith('---')) {
+        return <hr key={i} className="my-12 border-white/[0.08]" />;
+      }
+
+      if (line.startsWith('- ')) {
+        return (
+          <div key={i} className="flex gap-4 mb-4 text-neutral-400 leading-relaxed text-[17px] pl-2">
+            <span className="text-neutral-600 mt-1">•</span>
+            <span>{line.replace('- ', '')}</span>
+          </div>
+        );
+      }
+
+      if (line.trim() === '') return <div key={i} className="h-4" />;
+
       const parts = line.split('`');
       if (parts.length > 1) {
-          return (
-              <p key={i} className="text-neutral-400 leading-relaxed text-[16px] mb-4">
-                  {parts.map((part, index) => 
-                      index % 2 === 1 ? (
-                          <code key={index} className="px-1.5 py-0.5 rounded bg-white/[0.05] text-neutral-300 font-mono text-[0.9em]">
-                              {part}
-                          </code>
-                      ) : part
-                  )}
-              </p>
-          );
+        return (
+          <p key={i} className="text-neutral-400 leading-relaxed text-[17px] mb-6 tracking-tight">
+            {parts.map((part, index) => 
+              index % 2 === 1 ? (
+                <code key={index} className="px-1.5 py-0.5 rounded bg-white/[0.07] text-neutral-200 font-mono text-[0.85em] border border-white/[0.05]">
+                  {part}
+                </code>
+              ) : part
+            )}
+          </p>
+        );
       }
 
-      return <p key={i} className="text-neutral-400 leading-relaxed text-[16px] mb-4">{line}</p>;
+      return <p key={i} className="text-neutral-400 leading-relaxed text-[17px] mb-6 tracking-tight font-sans">{line}</p>;
     }).filter(el => el !== null);
   };
 
   return (
-    <motion.article
-      initial="hidden"
-      animate="visible"
-      variants={fade}
-      className="max-w-[700px] mx-auto pb-20"
-    >
-      <Link href="/blog" className="inline-flex items-center gap-2 text-[12px] font-mono text-neutral-500 hover:text-white transition-colors uppercase tracking-widest mb-12">
-        <ChevronLeft className="w-4 h-4" /> Back to blog
-      </Link>
-
-      <div className="mb-12">
-        <div className="flex gap-2 mb-4">
-          {post.tags.map(tag => (
-            <span key={tag} className="text-[10px] uppercase tracking-wider text-neutral-600 font-mono">
-              {tag}
-            </span>
-          ))}
+    <div className="w-full max-w-[1240px] mx-auto px-6 lg:px-12">
+      {/* Top Header Navigation */}
+      <div className="flex items-center justify-between py-8 border-b border-white/[0.05] mb-12">
+        <Link href="/blog" className="flex items-center gap-2 text-[12px] font-mono text-neutral-500 hover:text-white transition-all uppercase tracking-[0.2em] group">
+          <ChevronLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" /> 
+          <span className="opacity-60">Back</span> 
+          <span className="text-neutral-400">pawann/blog</span>
+        </Link>
+        <div className="flex items-center gap-6">
+           <Link href="/" className="text-[11px] font-mono text-neutral-500 hover:text-white uppercase tracking-widest transition-colors">Home</Link>
+           <Link href="/blog" className="text-[11px] font-mono text-neutral-500 hover:text-white uppercase tracking-widest transition-colors">All Posts</Link>
         </div>
-        <h1 className="text-[40px] font-bold text-white tracking-tight leading-tight mb-4">
-          {post.title}
-        </h1>
-        <p className="text-neutral-500 font-mono text-xs uppercase tracking-[0.2em]">
-          {post.date}
-        </p>
       </div>
 
-      <div className="blog-content">
-        {renderContent(post.content)}
+      <div className="flex flex-col lg:flex-row gap-16 relative">
+        {/* Sticky Left Sidebar ToC */}
+        <aside className="hidden lg:block w-[240px] shrink-0">
+          <div className="sticky top-24">
+            <div className="mb-8">
+               <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-neutral-600 mb-4">Contents</p>
+               <nav className="flex flex-col gap-4">
+                  {tocItems.map((item) => (
+                    <a
+                      key={item.id}
+                      href={`#${item.id}`}
+                      className={`text-[13px] leading-snug transition-all duration-300 hover:text-white ${
+                        activeSection === item.id ? "text-white translate-x-1" : "text-neutral-500"
+                      }`}
+                    >
+                      {item.title}
+                    </a>
+                  ))}
+               </nav>
+            </div>
+            <div className="pt-8 border-t border-white/[0.05]">
+              <button className="flex items-center gap-2 text-[11px] font-mono text-neutral-600 hover:text-neutral-400 transition-colors uppercase tracking-widest">
+                <Share2 className="w-3.5 h-3.5" /> Share
+              </button>
+            </div>
+          </div>
+        </aside>
+
+        {/* Main Content Area */}
+        <motion.article
+          initial="hidden"
+          animate="visible"
+          variants={fade}
+          className="flex-1 max-w-[760px]"
+        >
+          {/* Metadata */}
+          <div className="flex items-center gap-4 mb-6">
+            <span className="text-[11px] font-mono uppercase tracking-[0.25em] text-neutral-500">{post.date}</span>
+            <span className="w-1 h-1 rounded-full bg-neutral-700" />
+            <span className="flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-[0.25em] text-neutral-500">
+              <Clock className="w-3 h-3" /> 12 MIN READ
+            </span>
+          </div>
+
+          <h1 className="font-serif text-[42px] md:text-[64px] font-medium text-white mb-8 tracking-tighter leading-[1] text-balance">
+            {post.title}
+          </h1>
+
+          <div className="flex gap-2 mb-12 flex-wrap">
+            {post.tags.map(tag => (
+              <span key={tag} className="text-[10px] uppercase tracking-widest text-neutral-500 font-mono px-2.5 py-1 rounded bg-white/[0.03] border border-white/[0.05]">
+                {tag}
+              </span>
+            ))}
+          </div>
+
+          {/* Hero Image */}
+          {post.imageURL && (
+            <div className="relative aspect-[16/10] mb-16 rounded-2xl overflow-hidden shadow-2xl group border border-white/[0.05]">
+               <img 
+                src={post.imageURL} 
+                alt={post.title}
+                className="w-full h-full object-cover grayscale opacity-80 group-hover:grayscale-0 group-hover:opacity-100 transition-all duration-1000 scale-105 group-hover:scale-100"
+               />
+               <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
+            </div>
+          )}
+
+          {/* Article Body */}
+          <div className="blog-content prose prose-invert prose-headings:font-serif">
+            {renderContent(post.content)}
+          </div>
+        </motion.article>
       </div>
-    </motion.article>
+    </div>
   );
 }

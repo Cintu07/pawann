@@ -94,6 +94,7 @@ export default function Home() {
       initial="hidden"
       animate="visible"
       variants={fade}
+      className="max-w-[700px] mx-auto w-full"
     >
       <div className="flex flex-col sm:flex-row items-center sm:items-center gap-6 sm:gap-8 mb-12 text-center sm:text-left">
         <img

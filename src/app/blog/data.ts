@@ -5,6 +5,7 @@ export interface BlogPost {
   description: string;
   content: string;
   tags: string[];
+  imageURL?: string;
 }
 
 export const posts: BlogPost[] = [
@@ -14,6 +15,7 @@ export const posts: BlogPost[] = [
     date: "Oct 24, 2025",
     description: "Most failure detectors lie. STYX is a distributed membership system that returns a probability distribution instead of a boolean, handling uncertainty with honesty.",
     tags: ["Distributed Systems", "Go", "Architecture"],
+    imageURL: "/styx-hero.jpg",
     content: `
 # Building a Membership System That Says "I Don't Know"
 
