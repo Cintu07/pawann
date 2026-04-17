@@ -1,6 +1,7 @@
 "use client";
 
 import { motion, type Variants, type Easing } from "framer-motion";
+import ScrambleText from "@/components/ScrambleText";
 
 const experience = [
   {
@@ -52,7 +53,9 @@ export default function Experience() {
     >
       <div className="flex items-center gap-3 mb-10">
         <div className="h-[2px] w-6 bg-gradient-to-r from-neutral-300 to-transparent rounded" />
-        <h1 className="text-[20px] font-semibold text-white tracking-wide leading-none">experience</h1>
+        <h1 className="text-[20px] font-semibold text-white tracking-wide leading-none">
+          <ScrambleText text="experience" />
+        </h1>
       </div>
       
       <div className="space-y-10 border-l border-white/[0.08] pl-6 ml-2">

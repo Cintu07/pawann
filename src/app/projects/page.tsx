@@ -3,6 +3,7 @@
 import { motion, type Variants, type Easing } from "framer-motion";
 import { FiStar } from "react-icons/fi";
 import { VscRepoForked } from "react-icons/vsc";
+import ScrambleText from "@/components/ScrambleText";
 
 const projects = [
   {
@@ -91,7 +92,9 @@ export default function Projects() {
     >
       <div className="flex items-center gap-3 mb-10">
         <div className="h-[2px] w-6 bg-gradient-to-r from-neutral-300 to-transparent rounded" />
-        <h1 className="text-[20px] font-semibold text-white tracking-wide leading-none">Top Projects</h1>
+        <h1 className="text-[20px] font-semibold text-white tracking-wide leading-none">
+          <ScrambleText text="Top Projects" scrambleDelay={200} />
+        </h1>
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">

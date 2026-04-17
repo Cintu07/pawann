@@ -4,6 +4,7 @@ import "./globals.css";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
 import BackgroundMusic from "@/components/BackgroundMusic";
+import CustomCursor from "@/components/CustomCursor";
 
 export const metadata: Metadata = {
   title: "Pawan | Founding Engineer",
@@ -53,9 +54,14 @@ export default function RootLayout({
           :root {
             --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
           }
+          /* Hide default cursor for the custom magnetic cursor */
+          body * {
+            cursor: none !important;
+          }
         `}</style>
       </head>
-      <body className="bg-[#080808] text-neutral-200 antialiased selection:bg-white/10 selection:text-white">
+      <body className="bg-[#080808] text-neutral-200 antialiased selection:bg-white/10 selection:text-white overflow-x-hidden">
+        <CustomCursor />
         <div className="w-full max-w-[700px] mx-auto px-6 py-20 flex flex-col min-h-[90vh] relative z-10">
           <Navigation />
           

@@ -3,6 +3,7 @@
 import { motion, type Variants, type Easing } from "framer-motion";
 import { SiSpotify } from "react-icons/si";
 import useSWR from "swr";
+import ScrambleText from "@/components/ScrambleText";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -115,7 +116,9 @@ export default function Home() {
         </div>
 
         <div className="flex flex-col justify-center gap-1.5 sm:gap-2.5">
-          <h1 className="text-[32px] sm:text-[40px] font-semibold bg-clip-text text-transparent bg-gradient-to-br from-white to-neutral-400 tracking-tight leading-none">Pawan</h1>
+          <h1 className="text-[32px] sm:text-[40px] font-semibold bg-clip-text text-transparent bg-gradient-to-br from-white to-neutral-400 tracking-tight leading-none">
+            <ScrambleText text="Pawan" scrambleDelay={1200} />
+          </h1>
           <div className="text-[13px] sm:text-sm font-mono text-neutral-400 tracking-wide mt-1">
             founding engineer
           </div>
