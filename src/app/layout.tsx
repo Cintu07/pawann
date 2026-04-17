@@ -35,17 +35,9 @@ export const metadata: Metadata = {
   },
 };
 
-import { JetBrains_Mono } from 'next/font/google';
-
 const cabinetGrotesk = localFont({
-
   src: '../../public/fonts/CabinetGrotesk-Variable.ttf',
   variable: '--font-cabinet',
-});
-
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ['latin'],
-  variable: '--font-mono',
 });
 
 export default function RootLayout({
@@ -54,7 +46,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${cabinetGrotesk.variable} ${jetbrainsMono.variable}`}>
+    <html lang="en" className={`${cabinetGrotesk.variable}`}>
+      <head>
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
+          :root {
+            --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+          }
+        `}</style>
+      </head>
       <body className="bg-[#080808] text-neutral-200 antialiased selection:bg-white/10 selection:text-white">
         <div className="w-full max-w-[700px] mx-auto px-6 py-20 flex flex-col min-h-[90vh] relative z-10">
           <Navigation />
