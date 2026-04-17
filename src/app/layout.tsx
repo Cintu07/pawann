@@ -35,14 +35,16 @@ export const metadata: Metadata = {
   },
 };
 
+import { JetBrains_Mono } from 'next/font/google';
+
 const cabinetGrotesk = localFont({
 
   src: '../../public/fonts/CabinetGrotesk-Variable.ttf',
   variable: '--font-cabinet',
 });
 
-const jetbrainsMono = localFont({
-  src: '../../public/fonts/JetBrainsMono-Variable.ttf',
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ['latin'],
   variable: '--font-mono',
 });
 
