@@ -65,16 +65,19 @@ function SpotifyWidget() {
 }
 
 function VisitorCount() {
-  const { data } = useSWR('/api/visit', fetcher, { 
+  const { data, error } = useSWR('/api/visit', fetcher, { 
     revalidateOnFocus: true, 
     revalidateOnReconnect: true,
     refreshInterval: 0 
   });
 
+  // Handle both loading state and falsy zero value properly
+  const visits = data?.visits !== undefined ? data.visits.toLocaleString() : "...";
+
   return (
     <div className="mt-8 text-[13px] font-mono text-zinc-500 tracking-wide flex items-center gap-2">
       <div className="w-1.5 h-1.5 bg-zinc-500 rounded-full animate-pulse opacity-60" />
-      you're the {data?.visits ? data.visits.toLocaleString() : "..."}th visitor
+      you're the {visits}th visitor
     </div>
   );
 }
