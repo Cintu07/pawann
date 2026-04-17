@@ -6,6 +6,8 @@ import { Play, Pause } from "lucide-react";
 export default function BackgroundMusic() {
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const hasInteracted = useRef(false);
+  const userManuallyPaused = useRef(false);
 
   useEffect(() => {
     if (audioRef.current) {
@@ -13,40 +15,53 @@ export default function BackgroundMusic() {
       audioRef.current.loop = true;
     }
 
-    // Attempt to play on the first user interaction anywhere in the window
-    const handleFirstInteraction = () => {
-      if (audioRef.current && !isPlaying) {
+    const playAudio = () => {
+      if (audioRef.current && !userManuallyPaused.current) {
         audioRef.current.play().then(() => {
           setIsPlaying(true);
         }).catch(err => {
-          console.warn("Autoplay blocked, waiting for more interaction:", err);
+          console.warn("Autoplay still blocked:", err);
         });
       }
-      window.removeEventListener("mousedown", handleFirstInteraction);
-      window.removeEventListener("touchstart", handleFirstInteraction);
-      window.removeEventListener("scroll", handleFirstInteraction);
     };
 
-    window.addEventListener("mousedown", handleFirstInteraction);
-    window.addEventListener("touchstart", handleFirstInteraction);
-    window.addEventListener("scroll", handleFirstInteraction);
+    const handleInteraction = () => {
+      if (!hasInteracted.current) {
+        hasInteracted.current = true;
+        playAudio();
+      }
+    };
+
+    // Attach listeners with passive: true so they don't block scrolling, and only once
+    const eventOptions = { once: true, passive: true };
+    window.addEventListener("mousedown", handleInteraction, eventOptions);
+    window.addEventListener("touchstart", handleInteraction, eventOptions);
+    window.addEventListener("scroll", handleInteraction, eventOptions);
+    window.addEventListener("keydown", handleInteraction, eventOptions);
 
     return () => {
-      window.removeEventListener("mousedown", handleFirstInteraction);
-      window.removeEventListener("touchstart", handleFirstInteraction);
-      window.removeEventListener("scroll", handleFirstInteraction);
+      window.removeEventListener("mousedown", handleInteraction);
+      window.removeEventListener("touchstart", handleInteraction);
+      window.removeEventListener("scroll", handleInteraction);
+      window.removeEventListener("keydown", handleInteraction);
     };
-  }, [isPlaying]);
+  }, []);
 
   const togglePlay = () => {
     if (!audioRef.current) return;
     
+    hasInteracted.current = true; // Manual click counts as interaction
+
     if (isPlaying) {
       audioRef.current.pause();
+      userManuallyPaused.current = true;
+      setIsPlaying(false);
     } else {
-      audioRef.current.play();
+      audioRef.current.play().then(() => {
+        userManuallyPaused.current = false;
+        setIsPlaying(true);
+      }).catch(console.error);
     }
-    setIsPlaying(!isPlaying);
   };
 
   return (

@@ -5,19 +5,46 @@ import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
 import BackgroundMusic from "@/components/BackgroundMusic";
 
+export const metadata: Metadata = {
+  title: "Pawan | Founding Engineer",
+  description: "Founding engineer focused on robust backend infrastructure and intuitive interfaces.",
+  openGraph: {
+    title: "Pawan | Founding Engineer",
+    description: "Founding engineer focusing on next-generation voice agents and robust backend infrastructure.",
+    url: "https://pawann.vercel.app",
+    siteName: "Pawan Portfolio",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Pawan Portfolio",
+      },
+    ],
+    locale: "en_US",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Pawan | Founding Engineer",
+    description: "Founding engineer focusing on next-generation voice agents and robust backend infrastructure.",
+    images: ["/og-image.png"],
+  },
+  icons: {
+    icon: '/icon.svg',
+  },
+};
+
 const cabinetGrotesk = localFont({
+
   src: '../../public/fonts/CabinetGrotesk-Variable.ttf',
   variable: '--font-cabinet',
-  display: 'swap',
 });
 
-export const metadata: Metadata = {
-  title: "Pawan - Portfolio",
-  description: "Pawan Kalyan. Building voice agents at Cortex.",
-  icons: {
-    icon: 'https://avatars.githubusercontent.com/u/178455858?v=4'
-  }
-};
+const jetbrainsMono = localFont({
+  src: '../../public/fonts/JetBrainsMono-Variable.ttf',
+  variable: '--font-mono',
+});
 
 export default function RootLayout({
   children,
@@ -25,12 +52,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={cabinetGrotesk.variable}>
-      <body className="antialiased min-h-screen relative text-[#e5e5e5] pb-12 font-cabinet">
-        {/* Extremely subtle top atmospheric glow */}
-        <div className="absolute top-0 left-0 right-0 h-[400px] bg-gradient-to-b from-neutral-800/10 to-transparent pointer-events-none" />
-        
-        {/* Core Container Wrapper - Reverting to original centered logic */}
+    <html lang="en" className={`${cabinetGrotesk.variable} ${jetbrainsMono.variable}`}>
+      <body className="bg-[#080808] text-neutral-200 antialiased selection:bg-white/10 selection:text-white">
         <div className="w-full max-w-[700px] mx-auto px-6 py-20 flex flex-col min-h-[90vh] relative z-10">
           <Navigation />
           
