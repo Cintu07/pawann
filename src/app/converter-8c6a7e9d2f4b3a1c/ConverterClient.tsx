@@ -277,7 +277,7 @@ export default function ConverterClient() {
   };
 
   return (
-    <div className={`w-full mx-auto pb-10 flex flex-col ${layoutMode === "split" ? "max-w-[100%] px-4" : "max-w-[700px] px-0"}`}>
+    <div className={`w-full mx-auto pb-6 flex flex-col min-h-[92vh] py-4 ${layoutMode === "split" ? "max-w-[1600px] px-6" : "max-w-[760px] px-4"}`}>
       {/* Top Header bar */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 border-b border-card-border pb-4">
         <div className="flex items-center gap-3">
@@ -343,7 +343,7 @@ export default function ConverterClient() {
       </div>
 
       {/* Editor & Preview containers */}
-      <div className={`w-full flex ${layoutMode === "split" ? "flex-col md:flex-row gap-6 h-[calc(100vh-170px)]" : "flex-col"}`}>
+      <div className={`w-full flex ${layoutMode === "split" ? "flex-col md:flex-row gap-6 h-[calc(100vh-200px)] overflow-hidden" : "flex-col"}`}>
         
         {/* Editor Column */}
         {(layoutMode === "edit" || layoutMode === "split") && (
