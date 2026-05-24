@@ -25,6 +25,9 @@ export default function BackgroundMusic() {
       }
     };
 
+    // Attempt to play immediately on page mount
+    playAudio();
+
     const handleInteraction = () => {
       if (!hasInteracted.current) {
         hasInteracted.current = true;

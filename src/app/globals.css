@@ -4,19 +4,53 @@
 @theme {
   --font-cabinet: var(--font-cabinet);
   --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, monospace;
+  
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-card-bg: var(--card-bg);
+  --color-card-border: var(--card-border);
+  --color-pill-bg: var(--pill-bg);
+  --color-pill-border: var(--pill-border);
+  --color-timeline-line: var(--timeline-line);
+  --color-timeline-dot: var(--timeline-dot);
 }
 
 :root {
-  --bg: #050505;
+  --background: #080808;
+  --foreground: #e5e5e5;
+  --muted: #8e8e93;
+  --accent: #ffffff;
+  --card-bg: #111111;
+  --card-border: rgba(255, 255, 255, 0.06);
+  --pill-bg: rgba(255, 255, 255, 0.03);
+  --pill-border: rgba(255, 255, 255, 0.05);
+  --timeline-line: rgba(255, 255, 255, 0.08);
+  --timeline-dot: rgba(255, 255, 255, 0.3);
+}
+
+.light {
+  --background: #f7f7f9;
+  --foreground: #1c1c1e;
+  --muted: #6e6e73;
+  --accent: #000000;
+  --card-bg: #ffffff;
+  --card-border: rgba(0, 0, 0, 0.08);
+  --pill-bg: rgba(0, 0, 0, 0.03);
+  --pill-border: rgba(0, 0, 0, 0.05);
+  --timeline-line: rgba(0, 0, 0, 0.08);
+  --timeline-dot: rgba(0, 0, 0, 0.3);
 }
 
 body {
-  background-color: #18181b;
-  color: #e5e5e5;
+  background-color: var(--background);
+  color: var(--foreground);
   font-family: var(--font-cabinet);
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 ::selection {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(128, 128, 128, 0.15);
 }
