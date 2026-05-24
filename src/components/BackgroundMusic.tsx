@@ -1,12 +1,11 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Play, Pause } from "lucide-react";
+import { Play } from "lucide-react";
 
 export default function BackgroundMusic() {
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const hasInteracted = useRef(false);
   const userManuallyPaused = useRef(false);
 
   useEffect(() => {
@@ -19,41 +18,43 @@ export default function BackgroundMusic() {
       if (audioRef.current && !userManuallyPaused.current) {
         audioRef.current.play().then(() => {
           setIsPlaying(true);
+          removeListeners();
         }).catch(err => {
-          console.warn("Autoplay still blocked:", err);
+          console.warn("Autoplay blocked, waiting for valid user interaction:", err);
         });
       }
     };
 
-    // Attempt to play immediately on page mount
-    playAudio();
-
     const handleInteraction = () => {
-      if (!hasInteracted.current) {
-        hasInteracted.current = true;
-        playAudio();
-      }
+      playAudio();
     };
 
-    const eventOptions = { once: true, passive: true };
-    window.addEventListener("mousedown", handleInteraction, eventOptions);
-    window.addEventListener("touchstart", handleInteraction, eventOptions);
-    window.addEventListener("scroll", handleInteraction, eventOptions);
-    window.addEventListener("keydown", handleInteraction, eventOptions);
+    const addListeners = () => {
+      window.addEventListener("mousedown", handleInteraction, { passive: true });
+      window.addEventListener("touchstart", handleInteraction, { passive: true });
+      window.addEventListener("keydown", handleInteraction, { passive: true });
+    };
 
-    return () => {
+    const removeListeners = () => {
       window.removeEventListener("mousedown", handleInteraction);
       window.removeEventListener("touchstart", handleInteraction);
-      window.removeEventListener("scroll", handleInteraction);
       window.removeEventListener("keydown", handleInteraction);
+    };
+
+    // Attempt to play immediately on mount
+    playAudio();
+
+    // Add listeners in case it was blocked
+    addListeners();
+
+    return () => {
+      removeListeners();
     };
   }, []);
 
   const togglePlay = () => {
     if (!audioRef.current) return;
     
-    hasInteracted.current = true;
-
     if (isPlaying) {
       audioRef.current.pause();
       userManuallyPaused.current = true;
@@ -70,13 +71,29 @@ export default function BackgroundMusic() {
     <div className="fixed bottom-6 right-6 z-[60]">
       <audio ref={audioRef} src="/bg-music.mp3" preload="auto" />
       
+      <style>{`
+        @keyframes bounce-bar {
+          0% { transform: scaleY(0.3); }
+          100% { transform: scaleY(1.0); }
+        }
+        .visualizer-bar {
+          transform-origin: bottom;
+          animation: bounce-bar 0.6s ease-in-out infinite alternate;
+        }
+      `}</style>
+
       <button
         onClick={togglePlay}
-        className="w-10 h-10 rounded-full bg-white/[0.03] border border-white/[0.07] backdrop-blur-sm flex items-center justify-center text-neutral-500 hover:text-white hover:bg-white/[0.08] transition-all duration-300 shadow-2xl"
+        className="w-10 h-10 rounded-full bg-white/[0.03] border border-white/[0.07] hover:bg-white/[0.08] backdrop-blur-sm flex items-center justify-center text-neutral-500 hover:text-white transition-all duration-300 shadow-2xl cursor-pointer"
         aria-label={isPlaying ? "Pause music" : "Play music"}
       >
         {isPlaying ? (
-          <Pause className="w-4 h-4" />
+          <div className="flex items-end gap-[3px] h-3 w-3.5 justify-center">
+            <span className="w-[2px] h-full bg-current rounded-full visualizer-bar" style={{ animationDuration: '0.45s', animationDelay: '0.1s' }} />
+            <span className="w-[2px] h-full bg-current rounded-full visualizer-bar" style={{ animationDuration: '0.75s', animationDelay: '0.3s' }} />
+            <span className="w-[2px] h-full bg-current rounded-full visualizer-bar" style={{ animationDuration: '0.55s', animationDelay: '0.0s' }} />
+            <span className="w-[2px] h-full bg-current rounded-full visualizer-bar" style={{ animationDuration: '0.65s', animationDelay: '0.2s' }} />
+          </div>
         ) : (
           <Play className="w-4 h-4 fill-current ml-0.5" />
         )}

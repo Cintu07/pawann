@@ -1,9 +1,28 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export default function Footer() {
   const [copied, setCopied] = useState(false);
+  const [timeString, setTimeString] = useState("");
+
+  useEffect(() => {
+    const updateTime = () => {
+      const date = new Date();
+      const options: Intl.DateTimeFormatOptions = {
+        timeZone: "Asia/Kolkata",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false,
+      };
+      setTimeString(date.toLocaleTimeString("en-US", options));
+    };
+
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const copyDiscord = () => {
     navigator.clipboard.writeText("1258285819488374857");
@@ -15,6 +34,11 @@ export default function Footer() {
     <footer className="mt-32 pt-12 border-t border-white/[0.03]">
       <div className="flex items-center justify-between mb-8">
         <h2 className="text-[17px] font-medium text-white tracking-wide">Find me here ~</h2>
+        {timeString && (
+          <span className="text-[13px] font-mono text-zinc-500 tracking-wider">
+            {timeString} IST
+          </span>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-y-10 gap-x-4">

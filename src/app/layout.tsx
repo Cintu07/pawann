@@ -3,7 +3,6 @@ import localFont from 'next/font/local';
 import Script from 'next/script';
 import "./globals.css";
 import BackgroundMusic from "@/components/BackgroundMusic";
-import { ThemeProvider } from "@/components/ThemeProvider";
 
 export const metadata: Metadata = {
   title: "Pawan | Founding Engineer",
@@ -72,10 +71,8 @@ export default function RootLayout({
             </Script>
           </>
         )}
-        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
-          {children}
-          <BackgroundMusic />
-        </ThemeProvider>
+        {children}
+        <BackgroundMusic />
       </body>
     </html>
   );

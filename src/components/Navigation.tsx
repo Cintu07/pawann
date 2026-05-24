@@ -3,19 +3,12 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import { useTheme } from 'next-themes';
 import ResumeModal from './ResumeModal';
 
 export default function Navigation() {
   const pathname = usePathname();
   const router = useRouter();
   const [isResumeOpen, setIsResumeOpen] = useState(false);
-  const { theme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const links = [
     { path: '/', label: 'home', k: 'h' },
@@ -51,9 +44,6 @@ export default function Navigation() {
         case 'r':
           setIsResumeOpen((prev) => !prev);
           break;
-        case 't':
-          setTheme(theme === 'dark' ? 'light' : 'dark');
-          break;
         default:
           break;
       }
@@ -61,7 +51,7 @@ export default function Navigation() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [router, theme, setTheme]);
+  }, [router]);
 
   return (
     <>
@@ -73,7 +63,7 @@ export default function Navigation() {
               <li key={link.path} className="relative group">
                 <Link 
                   href={link.path}
-                  className={`block py-1 transition-all duration-300 ${isActive ? 'text-foreground' : 'hover:text-neutral-300'}`}
+                  className={`block py-1 transition-all duration-300 ${isActive ? 'text-white' : 'hover:text-neutral-300'}`}
                 >
                   <span className="opacity-40 group-hover:opacity-80 transition-opacity">[{link.k}]</span> {link.label}
                 </Link>
@@ -81,21 +71,11 @@ export default function Navigation() {
             );
           })}
           
-          {/* Theme Toggle Button */}
-          <li className="relative group">
-            <button 
-              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-              className="block py-1 transition-all duration-300 hover:text-foreground cursor-pointer text-left"
-            >
-              <span className="opacity-40 group-hover:opacity-80 transition-opacity">[t]</span> {mounted ? (theme === 'dark' ? 'light' : 'dark') : 'theme'}
-            </button>
-          </li>
-          
           {/* Resume Modal Trigger */}
           <li className="relative group ml-auto md:ml-0">
             <button 
               onClick={() => setIsResumeOpen(true)}
-              className="block py-1 transition-all duration-300 hover:text-foreground cursor-pointer"
+              className="block py-1 transition-all duration-300 hover:text-white cursor-pointer"
             >
               <span className="opacity-40 group-hover:opacity-80 transition-opacity">[r]</span> resume
             </button>

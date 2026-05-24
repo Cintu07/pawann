@@ -139,11 +139,14 @@ export default function ConverterClient() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Load draft on mount
+  // Load draft on mount and detect viewport size
   useEffect(() => {
     const savedDraft = localStorage.getItem("pawan_blog_draft");
     if (savedDraft) {
       setMarkdown(savedDraft);
+    }
+    if (window.innerWidth < 768) {
+      setLayoutMode("edit");
     }
   }, []);
 
@@ -322,7 +325,7 @@ export default function ConverterClient() {
             </button>
             <button
               onClick={() => setLayoutMode("split")}
-              className={`flex items-center gap-1 px-3 py-1 text-xs font-mono rounded-md transition-all cursor-pointer ${
+              className={`hidden md:flex items-center gap-1 px-3 py-1 text-xs font-mono rounded-md transition-all cursor-pointer ${
                 layoutMode === "split" ? "bg-foreground text-background" : "text-muted hover:text-foreground"
               }`}
             >

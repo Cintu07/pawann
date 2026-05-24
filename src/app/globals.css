@@ -30,25 +30,11 @@
   --timeline-dot: rgba(255, 255, 255, 0.3);
 }
 
-.light {
-  --background: #f7f7f9;
-  --foreground: #1c1c1e;
-  --muted: #6e6e73;
-  --accent: #000000;
-  --card-bg: #ffffff;
-  --card-border: rgba(0, 0, 0, 0.08);
-  --pill-bg: rgba(0, 0, 0, 0.03);
-  --pill-border: rgba(0, 0, 0, 0.05);
-  --timeline-line: rgba(0, 0, 0, 0.08);
-  --timeline-dot: rgba(0, 0, 0, 0.3);
-}
-
 body {
   background-color: var(--background);
   color: var(--foreground);
   font-family: var(--font-cabinet);
   -webkit-font-smoothing: antialiased;
-  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 ::selection {
