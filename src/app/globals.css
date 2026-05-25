@@ -5,38 +5,27 @@
   --font-cabinet: var(--font-cabinet);
   --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, monospace;
   
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-muted: var(--muted);
-  --color-accent: var(--accent);
   --color-card-bg: var(--card-bg);
   --color-card-border: var(--card-border);
   --color-pill-bg: var(--pill-bg);
   --color-pill-border: var(--pill-border);
-  --color-timeline-line: var(--timeline-line);
-  --color-timeline-dot: var(--timeline-dot);
 }
 
 :root {
-  --background: #080808;
-  --foreground: #e5e5e5;
-  --muted: #8e8e93;
-  --accent: #ffffff;
+  --bg: #050505;
   --card-bg: #111111;
   --card-border: rgba(255, 255, 255, 0.06);
   --pill-bg: rgba(255, 255, 255, 0.03);
   --pill-border: rgba(255, 255, 255, 0.05);
-  --timeline-line: rgba(255, 255, 255, 0.08);
-  --timeline-dot: rgba(255, 255, 255, 0.3);
 }
 
 body {
-  background-color: var(--background);
-  color: var(--foreground);
+  background-color: #18181b;
+  color: #e5e5e5;
   font-family: var(--font-cabinet);
   -webkit-font-smoothing: antialiased;
 }
 
 ::selection {
-  background: rgba(128, 128, 128, 0.15);
+  background: rgba(255, 255, 255, 0.1);
 }

@@ -57,6 +57,24 @@ const SUPPORTED_LANGUAGES = [
   { value: 'text', label: 'Plain Text' }
 ];
 
+// Preprocess markdown to wrap raw SVG blocks in custom inline-svg code blocks
+function preprocessMarkdown(text: string): string {
+  if (!text) return "";
+  
+  // Split by code blocks to avoid wrapping SVGs that are already inside code blocks
+  const parts = text.split(/(```[\s\S]*?```)/g);
+  const processedParts = parts.map((part) => {
+    if (part.startsWith("```")) {
+      return part;
+    } else {
+      // Find raw <svg ...> ... </svg> tags
+      return part.replace(/(<svg\b[^>]*>[\s\S]*?<\/svg>)/gi, "\n\n```inline-svg\n$1\n```\n\n");
+    }
+  });
+  
+  return processedParts.join("");
+}
+
 // Custom code block renderer with editable language select dropdown and copy button
 function CustomCodeBlock({ children, initialLang }: { children: string; initialLang: string }) {
   const [selectedLang, setSelectedLang] = useState(initialLang);
@@ -132,6 +150,7 @@ function CustomCodeBlock({ children, initialLang }: { children: string; initialL
 
 export default function ConverterClient() {
   const [markdown, setMarkdown] = useState("");
+  const [previewMarkdown, setPreviewMarkdown] = useState("");
   const [layoutMode, setLayoutMode] = useState<"edit" | "preview" | "split">("split");
   const [isDragOver, setIsDragOver] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -149,6 +168,15 @@ export default function ConverterClient() {
       setLayoutMode("edit");
     }
   }, []);
+
+  // Debounce preview rendering to eliminate typing lag
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setPreviewMarkdown(markdown);
+    }, 250);
+
+    return () => clearTimeout(timeout);
+  }, [markdown]);
 
   // Autosave draft to LocalStorage
   useEffect(() => {
@@ -231,40 +259,59 @@ export default function ConverterClient() {
     }, 0);
   };
 
-  // Convert image/svg file to object URL and insert in markdown
+  // Convert image/svg file to Base64 Data URL and insert in markdown
   const insertImageFile = (file: File) => {
-    const url = URL.createObjectURL(file);
-    const imageMarkdown = `\n![${file.name}](${url})\n`;
-    
-    const textarea = textareaRef.current;
-    if (textarea) {
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-      const currentText = textarea.value;
-      
-      const newText = currentText.substring(0, start) + imageMarkdown + currentText.substring(end);
-      setMarkdown(newText);
-      
-      setTimeout(() => {
-        textarea.focus();
-        textarea.setSelectionRange(start + imageMarkdown.length, start + imageMarkdown.length);
-      }, 0);
-    } else {
-      setMarkdown((prev) => prev + imageMarkdown);
-    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64Url = event.target?.result;
+      if (typeof base64Url === "string") {
+        const imageMarkdown = `\n![${file.name}](${base64Url})\n`;
+        
+        const textarea = textareaRef.current;
+        if (textarea) {
+          const start = textarea.selectionStart;
+          const end = textarea.selectionEnd;
+          const currentText = textarea.value;
+          
+          const newText = currentText.substring(0, start) + imageMarkdown + currentText.substring(end);
+          setMarkdown(newText);
+          
+          setTimeout(() => {
+            textarea.focus();
+            textarea.setSelectionRange(start + imageMarkdown.length, start + imageMarkdown.length);
+          }, 0);
+        } else {
+          setMarkdown((prev) => prev + imageMarkdown);
+        }
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   // Textarea paste handler to support pasting image files
   const handlePaste = (e: any) => {
-    const items = e.clipboardData?.items;
-    if (!items) return;
+    // 1. Check if files are in clipboard
+    const files = e.clipboardData?.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      if (file.type.startsWith("image/") || file.name?.endsWith(".svg")) {
+        e.preventDefault();
+        insertImageFile(file);
+        return;
+      }
+    }
 
-    for (let i = 0; i < items.length; i++) {
-      if (items[i].type.indexOf("image") !== -1 || items[i].name?.endsWith(".svg")) {
-        const file = items[i].getAsFile();
-        if (file) {
-          e.preventDefault();
-          insertImageFile(file);
+    // 2. Check items fallback
+    const items = e.clipboardData?.items;
+    if (items) {
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf("image") !== -1 || items[i].name?.endsWith(".svg")) {
+          const file = items[i].getAsFile();
+          if (file) {
+            e.preventDefault();
+            insertImageFile(file);
+            return;
+          }
         }
       }
     }
@@ -273,9 +320,13 @@ export default function ConverterClient() {
   // Textarea drag-over logic for direct dropping
   const handleTextareaDrop = (e: DragEvent<HTMLTextAreaElement>) => {
     const file = e.dataTransfer.files[0];
-    if (file && (file.type.startsWith("image/") || file.name.endsWith(".svg"))) {
+    if (file) {
       e.preventDefault();
-      insertImageFile(file);
+      if (file.type.startsWith("image/") || file.name.endsWith(".svg")) {
+        insertImageFile(file);
+      } else {
+        processFile(file);
+      }
     }
   };
 
@@ -500,7 +551,7 @@ export default function ConverterClient() {
             )}
 
             <div className="blog-content prose max-w-none">
-              {markdown.trim() === "" ? (
+              {previewMarkdown.trim() === "" ? (
                 <div className="flex flex-col items-center justify-center py-20 text-center text-muted font-mono text-sm gap-2">
                   <Sparkles className="w-5 h-5 text-neutral-600" />
                   <span>Preview is empty. Start typing to see it render beautifully!</span>
@@ -516,6 +567,22 @@ export default function ConverterClient() {
                     li: ({node, ...props}) => <li className="text-muted leading-relaxed text-[15px] mb-2 list-none flex gap-3"><span className="text-neutral-500 mt-1.5 text-xs">•</span><span {...props} /></li>,
                     code: ({node, className, children, ...props}: any) => {
                       const match = /language-(\w+)/.exec(className || '');
+                      
+                      // Intercept inline-svg language to render raw SVG visually
+                      if (match && match[1] === 'inline-svg') {
+                        return (
+                          <div className="my-6 flex flex-col items-center gap-2 bg-neutral-900/50 border border-card-border rounded-xl p-6 overflow-auto max-w-full group/svg relative">
+                            <div 
+                              className="w-full flex justify-center"
+                              dangerouslySetInnerHTML={{ __html: String(children) }}
+                            />
+                            <span className="absolute top-2 right-2 opacity-0 group-hover/svg:opacity-100 transition-opacity text-[10px] font-mono text-zinc-500 bg-black/60 px-2 py-0.5 rounded border border-card-border select-none">
+                              SVG Graphic
+                            </span>
+                          </div>
+                        );
+                      }
+                      
                       const isBlock = !!match || String(children).includes('\n') || String(children).length > 60;
                       
                       if (!isBlock) {
@@ -554,7 +621,7 @@ export default function ConverterClient() {
                     )
                   }}
                 >
-                  {markdown}
+                  {preprocessMarkdown(previewMarkdown)}
                 </ReactMarkdown>
               )}
             </div>

@@ -54,7 +54,7 @@ export default function RootLayout({
           }
         `}</style>
       </head>
-      <body className="antialiased selection:bg-white/10 selection:text-white overflow-x-hidden">
+      <body className="bg-[#18181b] text-neutral-200 antialiased selection:bg-white/10 selection:text-white overflow-x-hidden">
         {process.env.NEXT_PUBLIC_GA_ID && (
           <>
             <Script

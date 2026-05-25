@@ -30,15 +30,21 @@ export default function BackgroundMusic() {
     };
 
     const addListeners = () => {
-      window.addEventListener("mousedown", handleInteraction, { passive: true });
-      window.addEventListener("touchstart", handleInteraction, { passive: true });
-      window.addEventListener("keydown", handleInteraction, { passive: true });
+      document.addEventListener("click", handleInteraction, { passive: true });
+      document.addEventListener("mousedown", handleInteraction, { passive: true });
+      document.addEventListener("touchstart", handleInteraction, { passive: true });
+      document.addEventListener("touchend", handleInteraction, { passive: true });
+      document.addEventListener("keydown", handleInteraction, { passive: true });
+      document.addEventListener("pointerdown", handleInteraction, { passive: true });
     };
 
     const removeListeners = () => {
-      window.removeEventListener("mousedown", handleInteraction);
-      window.removeEventListener("touchstart", handleInteraction);
-      window.removeEventListener("keydown", handleInteraction);
+      document.removeEventListener("click", handleInteraction);
+      document.removeEventListener("mousedown", handleInteraction);
+      document.removeEventListener("touchstart", handleInteraction);
+      document.removeEventListener("touchend", handleInteraction);
+      document.removeEventListener("keydown", handleInteraction);
+      document.removeEventListener("pointerdown", handleInteraction);
     };
 
     // Attempt to play immediately on mount
