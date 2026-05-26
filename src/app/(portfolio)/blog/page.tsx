@@ -4,6 +4,12 @@ import { motion, type Variants, type Easing } from "framer-motion";
 import Link from "next/link";
 import { posts } from "./data";
 
+function getReadingTime(content: string): string {
+  const words = content.trim().split(/\s+/).length;
+  const minutes = Math.max(1, Math.ceil(words / 225));
+  return `${minutes} min read`;
+}
+
 export default function Blog() {
   const customEasing: Easing = [0.25, 0.1, 0.25, 1];
   const fade: Variants = {
@@ -22,41 +28,61 @@ export default function Blog() {
       variants={fade}
       className="max-w-[700px] mx-auto w-full"
     >
-      <div className="flex items-center gap-3 mb-10">
+      <div className="flex items-center gap-3 mb-12">
         <div className="h-[2px] w-6 bg-gradient-to-r from-neutral-300 to-transparent rounded" />
         <h1 className="text-[20px] font-semibold text-white tracking-wide leading-none">blog</h1>
       </div>
       
-      <div className="space-y-6">
-        {posts.map((post) => (
-          <Link 
-            key={post.slug} 
-            href={`/blog/${post.slug}`}
-            className="block group"
-          >
-            <div className="bg-white/[0.02] border border-white/[0.05] rounded-2xl p-6 transition-all duration-300 group-hover:bg-white/[0.04] group-hover:border-white/[0.1] backdrop-blur-sm">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-3">
-                <h2 className="text-[18px] font-medium text-neutral-200 group-hover:text-white transition-colors tracking-tight">
-                  {post.title}
-                </h2>
-                <span className="text-[12px] font-mono text-neutral-500 uppercase tracking-widest whitespace-nowrap">
-                  {post.date}
-                </span>
-              </div>
-              <p className="text-neutral-400 text-sm leading-relaxed mb-4 max-w-[600px]">
-                {post.description}
-              </p>
-              <div className="flex gap-2 flex-wrap">
-                {post.tags.map(tag => (
-                  <span key={tag} className="text-[10px] uppercase tracking-wider text-neutral-600 font-mono bg-black/20 px-2 py-0.5 rounded border border-white/[0.03]">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-10 w-full">
+        {posts.map((post) => {
+          const readingTime = getReadingTime(post.content);
+          return (
+            <Link 
+              key={post.slug} 
+              href={`/blog/${post.slug}`}
+              className="group flex flex-col gap-3 w-full"
+            >
+              {/* Cover Image */}
+              {post.imageURL && (
+                <div className="aspect-[16/10] w-full rounded-2xl overflow-hidden border border-white/[0.05] bg-neutral-900 group-hover:border-white/[0.1] transition-all duration-300 shadow-md">
+                  <img 
+                    src={post.imageURL} 
+                    alt={post.title}
+                    className="w-full h-full object-cover group-hover:scale-[102%] transition-transform duration-500"
+                  />
+                </div>
+              )}
+              
+              {/* Tags */}
+              <div className="flex gap-2 flex-wrap mt-1">
+                {post.tags.slice(0, 2).map(tag => (
+                  <span key={tag} className="text-[10px] font-semibold font-mono uppercase tracking-wider text-purple-400 bg-purple-500/10 px-2.5 py-0.5 rounded-full border border-purple-500/15">
                      {tag}
                   </span>
                 ))}
               </div>
-            </div>
-          </Link>
-        ))}
+
+              {/* Title */}
+              <h2 className="text-[18px] font-bold text-neutral-100 group-hover:text-purple-300 transition-colors tracking-tight leading-snug">
+                {post.title}
+              </h2>
+
+              {/* Description */}
+              <p className="text-neutral-400 text-[13px] leading-relaxed line-clamp-2">
+                {post.description}
+              </p>
+
+              {/* Metadata */}
+              <div className="flex items-center gap-2 text-neutral-500 font-mono text-[9px] uppercase tracking-widest mt-1">
+                <span>{post.date}</span>
+                <span>•</span>
+                <span>{readingTime}</span>
+              </div>
+            </Link>
+          );
+        })}
       </div>
     </motion.main>
   );
 }
+
