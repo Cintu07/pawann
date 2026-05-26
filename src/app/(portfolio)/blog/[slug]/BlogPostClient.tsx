@@ -87,7 +87,7 @@ export default function BlogPostClient({ post }: { post: BlogPost }) {
               if (!isBlock) {
                 return (
                   <code 
-                    className="inline px-1.5 py-0.5 rounded bg-purple-950/20 text-purple-300 text-[13px] md:text-[14px] border border-purple-500/15 font-mono align-middle mx-0.5 break-words" 
+                    className="inline px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 text-[13px] md:text-[14px] border border-amber-500/15 font-mono align-middle mx-0.5 break-words" 
                     {...props}
                   >
                     {children}
