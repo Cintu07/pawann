@@ -87,7 +87,7 @@ export default function BlogPostClient({ post }: { post: BlogPost }) {
               if (!isBlock) {
                 return (
                   <code 
-                    className="inline px-1.5 py-0.5 rounded-md bg-red-500/10 text-red-500 text-[0.9em] border border-red-500/10 font-mono align-baseline mx-0.5" 
+                    className="inline px-1.5 py-0.5 rounded bg-purple-950/20 text-purple-300 text-[13px] md:text-[14px] border border-purple-500/15 font-mono align-middle mx-0.5 break-words" 
                     {...props}
                   >
                     {children}
@@ -106,7 +106,7 @@ export default function BlogPostClient({ post }: { post: BlogPost }) {
                                 fontSize: '13px',
                                 fontFamily: 'var(--font-mono)',
                                 lineHeight: '1.6'
-                            }
+                             }
                         }}
                         customStyle={{
                             margin: 0,
@@ -132,7 +132,17 @@ export default function BlogPostClient({ post }: { post: BlogPost }) {
                 <div className="my-10 rounded-2xl overflow-hidden border border-white/[0.05]">
                     <img className="w-full object-contain max-h-[500px]" {...props} alt={props.alt || "blog image"} />
                 </div>
-            )
+            ),
+            table: ({node, ...props}) => (
+              <div className="my-10 w-full overflow-x-auto rounded-2xl border border-white/[0.05] bg-white/[0.01] shadow-xl">
+                <table className="w-full text-left border-collapse text-[13px] md:text-[14px]" {...props} />
+              </div>
+            ),
+            thead: ({node, ...props}) => <thead className="bg-white/[0.02] border-b border-white/[0.05]" {...props} />,
+            tbody: ({node, ...props}) => <tbody className="divide-y divide-white/[0.02]" {...props} />,
+            tr: ({node, ...props}) => <tr className="hover:bg-white/[0.01] transition-colors" {...props} />,
+            th: ({node, ...props}) => <th className="px-4 py-3 font-mono text-[10px] font-bold uppercase tracking-wider text-neutral-400" {...props} />,
+            td: ({node, ...props}) => <td className="px-4 py-3.5 text-neutral-300 font-sans align-middle leading-relaxed" {...props} />
           }}
         >
           {post.content}
