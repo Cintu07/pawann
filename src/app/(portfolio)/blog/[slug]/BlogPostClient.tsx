@@ -72,7 +72,13 @@ export default function BlogPostClient({ post }: { post: BlogPost }) {
           components={{
             h1: ({node, ...props}) => <h1 className="text-[32px] md:text-[40px] font-bold text-white mt-12 mb-8 tracking-tighter leading-tight" {...props} />,
             h2: ({node, ...props}) => <h2 className="text-[20px] md:text-[24px] font-bold text-neutral-100 mt-12 mb-6 tracking-tight" {...props} />,
-            p: ({node, ...props}) => <p className="text-neutral-400 leading-relaxed text-[16px] mb-6" {...props} />,
+            p: ({node, children, ...props}: any) => {
+              const hasImg = node?.children?.some((child: any) => child.tagName === "img");
+              if (hasImg) {
+                return <>{children}</>;
+              }
+              return <p className="text-neutral-400 leading-relaxed text-[16px] mb-6" {...props}>{children}</p>;
+            },
             li: ({node, ...props}) => <li className="text-neutral-400 leading-relaxed text-[16px] mb-2 list-none flex gap-3"><span className="text-neutral-600 mt-1">•</span><span {...props} /></li>,
             code: ({node, className, children, ...props}: any) => {
               const match = /language-(\w+)/.exec(className || '');
