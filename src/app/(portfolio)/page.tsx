@@ -128,16 +128,12 @@ export default function Home() {
         </div>
       </div>
 
-      <div className="space-y-6 text-neutral-400 leading-relaxed text-[17px] max-w-[620px]">
+      <div className="space-y-6 text-[#999] leading-relaxed text-[17px] max-w-[620px]">
         <p>
-          Hey, I am a <span className="text-white font-medium">founding engineer</span> focused on building robust backend infrastructure and highly intuitive interfaces. Right now, I am spending my time engineering <span className="text-purple-400 font-medium bg-transparent md:bg-purple-950/20 md:border md:border-purple-500/15 px-0 md:px-1.5 py-0 md:py-0.5 rounded-none md:rounded">next-generation voice agents</span>.
+          Hey, I am a founding engineer focused on building robust backend infrastructure and highly intuitive interfaces. Right now, I am spending my time engineering next-generation voice agents.
         </p>
         <p>
-          I love keeping things simple, writing code that actually makes sense, and building systems that don't break. I spend most of my time working heavily with{' '}
-          <span className="inline-flex items-center font-mono text-[13px] md:text-[14px] text-purple-400 md:text-purple-300 bg-transparent md:bg-purple-950/20 border-0 md:border md:border-purple-500/15 px-0 md:px-1.5 py-0 md:py-0.5 rounded-none md:rounded transition-all duration-300 md:hover:bg-purple-500/20">Go</span>,{' '}
-          <span className="inline-flex items-center font-mono text-[13px] md:text-[14px] text-purple-400 md:text-purple-300 bg-transparent md:bg-purple-950/20 border-0 md:border md:border-purple-500/15 px-0 md:px-1.5 py-0 md:py-0.5 rounded-none md:rounded transition-all duration-300 md:hover:bg-purple-500/20">Rust</span>,{' '}
-          <span className="inline-flex items-center font-mono text-[13px] md:text-[14px] text-purple-400 md:text-purple-300 bg-transparent md:bg-purple-950/20 border-0 md:border md:border-purple-500/15 px-0 md:px-1.5 py-0 md:py-0.5 rounded-none md:rounded transition-all duration-300 md:hover:bg-purple-500/20">TypeScript</span>, and{' '}
-          <span className="inline-flex items-center font-mono text-[13px] md:text-[14px] text-purple-400 md:text-purple-300 bg-transparent md:bg-purple-950/20 border-0 md:border md:border-purple-500/15 px-0 md:px-1.5 py-0 md:py-0.5 rounded-none md:rounded transition-all duration-300 md:hover:bg-purple-500/20">C++</span>.
+          I love keeping things simple, writing code that actually makes sense, and building systems that don't break. I spend most of my time working heavily with <span className="font-mono text-[14px]">Go</span>, <span className="font-mono text-[14px]">Rust</span>, <span className="font-mono text-[14px]">TypeScript</span>, and <span className="font-mono text-[14px]">C++</span>.
         </p>
       </div>
 
