@@ -119,10 +119,12 @@ export default function BlogPostClient({ post }: { post: BlogPost }) {
                 </div>
               );
             },
-            blockquote: ({node, ...props}) => (
+            blockquote: ({node, children, ...props}: any) => (
               <blockquote className="my-8 p-6 rounded-2xl bg-white/[0.03] border border-white/[0.05] relative overflow-hidden group" {...props}>
                 <div className="absolute top-0 left-0 w-1 h-full bg-neutral-600" />
-                <div className="text-[16px] md:text-[18px] text-neutral-300 italic leading-relaxed relative z-10" />
+                <div className="text-[16px] md:text-[18px] text-neutral-300 italic leading-relaxed relative z-10">
+                  {children}
+                </div>
               </blockquote>
             ),
             hr: ({node, ...props}) => <hr className="my-12 border-white/[0.08]" {...props} />,
