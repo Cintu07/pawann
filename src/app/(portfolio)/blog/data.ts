@@ -21,31 +21,31 @@ export const posts: BlogPost[] = [
 
 > 0.54 ms per 1024x1024 ternary matvec on a snapdragon x laptop. zero dependencies, one binary, ~3,000 lines of c++ and python. github: [@Cintu07/ciot](https://github.com/Cintu07/ciot).
 
-the standard story for running a neural network goes like this. install pytorch. install cuda. install a runtime. spin up a gpu. wait for warmup. get tokens out. **ciot is the version of that story where you delete every word after \"install\"**. a c++ binary opens a \`.bits\` file and produces tokens. that is the whole thing.
+the standard story for running a neural network goes like this. install pytorch. install cuda. install a runtime. spin up a gpu. wait for warmup. get tokens out. **ciot is the version of that story where you delete every word after "install"**. a c++ binary opens a \`.bits\` file and produces tokens. that is the whole thing.
 
 i started this because i wanted to know how fast ternary weights could actually run if you took the framework overhead seriously and stripped it. not how fast in theory, where you can wave your hands at flops, but how fast in practice on a laptop you actually own. the answer turns out to be: faster than i expected, by a factor of about six over a clean scalar baseline, and the code that gets you there is short enough to read in one sitting.
 
 most of the engine is not the kernel. once the matvec is fast and correct, you still need a tokenizer, a model loader, a kv cache, a rope table, an attention loop, and a tiny transformer trainer to produce weights that aren't random. each one of those is a place where you can quietly leak performance with a bad layout or an allocator that does not align.
 
-this post walks through the engine top to bottom. how the weights are stored, how they get from float32 down to three values without losing the signal, how the simd kernel goes branchless on three different instruction sets, how the rest of the transformer hangs off that kernel, and how every claim in the readme is verified bit-for-bit against a scalar reference. the first two or three commits on github are roughly what i posted on twitter and linkedin. everything else came after the matvec was correct and i wanted a real model running.
+this post walks through the engine top to bottom. how the weights are stored, how they get from float32 down to three values without losing the signal, how the simd kernel goes branchless on three different instruction sets, how the rest of the transformer hangs off that kernel, and how every claim in the readme is verified bit-for-bit against a scalar reference. the first two or three commits on github are roughly what i posted on twitter and linkedin. everything else came after the matvec was correct and i wanted a real model running on top of it.
 
 ## why ternary
 
 ternary networks store each weight as one of three values: -1, 0, or +1. a multiply by such a weight is not actually a multiply. it is an add, a no-op, or a subtract. a ternary matrix times a vector is a sequence of pick-or-skip-and-flip operations, which a cpu is extremely good at when the layout cooperates.
 
-recent ternary-leaning research (bitnet 1.58b and the wave of follow-ups) shows that with the right training recipe, ternary weights cost surprisingly little accuracy versus float32. the catch is that to actually run them quickly you need a kernel that exploits the bit-level structure. blas does not have a \"ternary gemm\" routine. cublas does not either. so you write your own, or you give up the throughput and just store ternary values inside float32 like a coward.
+recent ternary-leaning research (bitnet 1.58b and the wave of follow-ups) shows that with the right training recipe, ternary weights cost surprisingly little accuracy versus float32. the catch is that to actually run them quickly you need a kernel that exploits the bit-level structure. blas does not have a "ternary gemm" routine. cublas does not either. so you write your own, or you give up the throughput and just store ternary values inside float32 like a coward.
 
 ciot writes its own.
 
-the choice of *three* values, not two, also matters. binary networks (-1, +1 only) are easier to encode but lose the ability to express \"this connection is irrelevant\", which turns out to be most of them. ternary keeps a sparsity dimension for free: anywhere a weight wanted to be near zero, it gets a zero. zeros cost no compute in the kernel because they appear in neither bit plane. you do not skip them with a branch. you just never read them in the first place. that is the property that lets ternary feel sparse without paying for sparsity bookkeeping.
+the choice of *three* values, not two, also matters. binary networks (-1, +1 only) are easier to encode but lose the ability to express "this connection is irrelevant", which turns out to be most of them. ternary keeps a sparsity dimension for free: anywhere a weight wanted to be near zero, it gets a zero. zeros cost no compute in the kernel because they appear in neither bit plane. you do not skip them with a branch. you just never read them in the first place. that is the property that lets ternary feel sparse without paying for sparsity bookkeeping.
 
-the related work mostly lives in the \"1-bit\" and \"1.58-bit\" lineage: bitnet, the b1.58 paper, and a few hugging face threads on quantizing pretrained models down to ternary. all of it consistently shows that the accuracy gap from float to ternary is much smaller than the storage gap. the kernel side is where the published literature thins out. people benchmark gemm on simulated bit packings or fall back to int8 fused kernels. very few people write the actual bit-plane code on actual silicon. ciot is mostly an attempt to take that part seriously and write it down.
+the related work mostly lives in the "1-bit" and "1.58-bit" lineage: bitnet, the b1.58 paper, and a few hugging face threads on quantizing pretrained models down to ternary. all of it consistently shows that the accuracy gap from float to ternary is much smaller than the storage gap. the kernel side is where the published literature thins out. people benchmark gemm on simulated bit packings or fall back to int8 fused kernels. very few people write the actual bit-plane code on actual silicon. ciot is mostly an attempt to take that part seriously and write it down.
 
 ## storing 64 weights in 16 bytes
 
-the storage layout is the first thing to get right. for ternary you want one bit-plane that answers \"is this weight +1\" and another that answers \"is this weight -1\". if both bits are zero, the weight is zero. you never explicitly store the zeros. you never store any redundancy. just two bits per weight.
+the storage layout is the first thing to get right. for ternary you want one bit-plane that answers "is this weight +1" and another that answers "is this weight -1". if both bits are zero, the weight is zero. you never explicitly store the zeros. you never store any redundancy. just two bits per weight.
 
-![packing ternary weights into two bit planes](/ciot-bit-planes.png)
+
 
 in code, a row chunk of 64 weights is two \`uint64\`s. for a matrix of \`rows\` rows and \`cols\` columns you have \`blocks64 = ceil(cols / 64)\` and two flat arrays of \`rows * blocks64\` \`uint64\`s, plus a tiny \`float\` per row for the row scale (more on that in a minute).
 
@@ -60,7 +60,7 @@ struct TernaryMatrix {
 };
 \`\`\`
 
-a 1024x1024 ternary matrix in this format takes 1024 * 16 * 2 = 32 kb for the bit planes plus 4 kb for scales. the same matrix as \`float32\` is 4 mb. that is a 113x compression ratio, and the layout is already in the exact shape simd wants. you didn't pay for it. it fell out of the encoding choice.
+a 1024x1024 ternary matrix in this format takes 1024 \\* 16 \\* 2 = 32 kb for the bit planes plus 4 kb for scales. the same matrix as \`float32\` is 4 mb. that is a 113x compression ratio, and the layout is already in the exact shape simd wants. you didn't pay for it. it fell out of the encoding choice.
 
 the \`.bits\` file on disk is the in-memory layout with a tiny header on top: an 8-byte magic string (\`CIOTBIT1\`), the dimensions, and \`blocks64\`, then the row scales, then \`pos_bits\`, then \`neg_bits\`. the loader reads four values, validates the magic, allocates aligned memory, and \`read()\`s the rest in two contiguous calls. no parser. no schema. mmap would work too. the file format is the array.
 
@@ -75,9 +75,9 @@ constexpr std::uint32_t CIOT_TERNARY_BLOCK = 64;
 
 the two \`64\`s being equal is not a coincidence. one block of 64 ternary weights produces 16 bytes of bit-plane data, which is exactly one quarter of a cache line. four blocks fill a cache line. the prefetcher does the rest.
 
-**row-major was the right call.** column-major would have packed the bits the other way and made batch-of-vectors easier, but the dominant operation in decode-time inference is \"one row at a time, accumulate one float into y[r]\". row-major lets each row's pos and neg arrays be a single contiguous span in memory. the inner loop reads \`pos_bits[row_base + b]\` and \`neg_bits[row_base + b]\` with stride 8 bytes. that is the easiest pattern for the cpu to handle.
+**row-major was the right call.** column-major would have packed the bits the other way and made batch-of-vectors easier, but the dominant operation in decode-time inference is "one row at a time, accumulate one float into y[r]". row-major lets each row's pos and neg arrays be a single contiguous span in memory. the inner loop reads \`pos_bits[row_base + b]\` and \`neg_bits[row_base + b]\` with stride 8 bytes. that is the easiest pattern for the cpu to handle.
 
-**why two planes and not one packed nibble.** an obvious alternative is \"store each weight as 2 bits in a packed byte: 00 = 0, 01 = +1, 10 = -1, 11 = unused\". it sounds more compact but it is the same density (2 bits per weight either way), and it forces the kernel to do a per-element comparison to decide which of the three cases applies. with two planes, the kernel never makes a per-weight decision. it does the +1 work, then it does the -1 work, then it subtracts. zero weights handle themselves by being absent from both planes. the encoding choice and the kernel shape are the same idea written in two different files.
+**why two planes and not one packed nibble.** an obvious alternative is "store each weight as 2 bits in a packed byte: 00 = 0, 01 = +1, 10 = -1, 11 = unused". it sounds more compact but it is the same density (2 bits per weight either way), and it forces the kernel to do a per-element comparison to decide which of the three cases applies. with two planes, the kernel never makes a per-weight decision. it does the +1 work, then it does the -1 work, then it subtracts. zero weights handle themselves by being absent from both planes. the encoding choice and the kernel shape are the same idea written in two different files.
 
 ## getting from float to ternary without losing the signal
 
@@ -85,7 +85,7 @@ if you take a trained float matrix and naively round every weight to the nearest
 
 the fix is delta-sigma style error compensation. when you round one weight, the residual (what you threw away) gets added to the next weight before that one is rounded. a row full of small positive values does not lose them: every few weights the running residual crosses the threshold and emits a \`+1\` that captures the cumulative signal.
 
-![error-compensated quantization](/ciot-quantization.png)
+
 
 the packer is in pure-python stdlib. no numpy. the entire quantizer is one function:
 
@@ -111,7 +111,7 @@ the per-row scale \`s\` is the one cheat in the whole encoding. when the kernel 
 
 the threshold being half the scale is the only tunable in the quantizer, and it lands where it does for a clean reason. a value of magnitude exactly \`s\` should round to \`±1\` (it is one full quantum). a value of magnitude \`0\` should round to \`0\`. the symmetric midpoint is \`0.5*s\`. anything above \`+0.5*s\` is closer to \`+1\` than to \`0\` in scale units, and gets a \`+1\`. you could pick a different threshold to bias the matrix sparser or denser, but the half-scale midpoint is the maximum-likelihood choice if you assume the weights are roughly uniformly distributed inside \`[-s, +s]\`.
 
-per-row scaling instead of per-matrix is the other deliberate choice. transformer weight matrices have rows that look very different from one another, especially after training. the q/k/v projections develop attention heads, and a \"head\" inside the weights is a band of rows with their own magnitude. a single matrix-wide scale would crush some bands and amplify others. per-row scales let each band live in its own dynamic range and recover correctly on the kernel side. the cost is the 4 kb of scales i mentioned above, which is the cheapest insurance you will ever buy for a network.
+per-row scaling instead of per-matrix is the other deliberate choice. transformer weight matrices have rows that look very different from one another, especially after training. the q/k/v projections develop attention heads, and a "head" inside the weights is a band of rows with their own magnitude. a single matrix-wide scale would crush some bands and amplify others. per-row scales let each band live in its own dynamic range and recover correctly on the kernel side. the cost is the 4 kb of scales i mentioned above, which is the cheapest insurance you will ever buy for a network.
 
 what ternary cannot represent is the fine relationships between weights of similar magnitude. two weights of value \`+0.21\` and \`+0.27\` both become \`+1\`. the kernel cannot tell them apart. for some layers this matters (the lm head, especially), and the right way to handle it is to train with ternary-aware loss, not to fix it after the fact. the included python trainer does this in the dumbest possible way (sgd, no fancy schedules) and it still gets reasonable behavior out of small models. a proper ternary fine-tuning recipe would go a lot further.
 
@@ -121,42 +121,284 @@ this is the core of ciot. one function. three simd variants (avx-512, avx2, neon
 
 the high-level idea: for each row \`r\`, walk down the row in chunks of 64 columns. for each chunk you have one \`uint64\` pos mask and one \`uint64\` neg mask. you load 4 or 8 or 16 floats from the input vector \`x\` (depending on the lane width). you turn the relevant bits of the mask into a vector boolean and use it to conditionally zero out the values. you accumulate into a separate \`acc_pos\` and \`acc_neg\`. at the end you do \`hsum(acc_pos - acc_neg)\` and multiply by the row scale.
 
-the entire trick is the \"turn bits into a boolean vector\" step.
+the entire trick is the "turn bits into a boolean vector" step.
 
-![branchless ternary matvec, one simd chunk](/ciot-simd.png)
 
-## multi-head kv cache and interleaved buffers
 
-during transformer generation, key and value vectors must be stored for every token in the sequence. for multi-head attention (mha), we have a key and a value vector per head. the standard way to store this is to allocate separate dynamic buffers per head or to resize the arrays on the fly. that is another place where allocation overhead and cache fragmentation will slowly kill your performance.
+the neon path is the cleanest one to read. load 4 input floats into a 4-lane vector. broadcast 4 relevant bits of \`pos_bits\` into another 4-lane integer vector (every lane gets the same nibble). AND that with \`{1, 2, 4, 8}\` and compare \`> 0\`. the lane where bit \`k\` was set produces a \`1\`, the lane where it was not produces a \`0\`. bit-select between \`x\` and \`0\` using that mask. add into \`acc_pos\`. same shape for \`neg\`. at the end, subtract and reduce.
 
-ciot allocates a single, contiguous, cache-aligned block of memory for both keys and values across all heads up to the maximum context length. the memory is interleaved by head to ensure that the inner attention loop, which iterates over the context tokens for a single head, can perform a perfectly contiguous linear walk through memory.
-
-![multi-head kv cache, one interleaved buffer](/ciot-kv-cache.png)
-
-each key and value slot is 64-byte aligned. appending a new token's key and value is a single \`memcpy\` per head. because the layout is pre-allocated and static, we never resize, we never allocate on the hot path, and we never miss cache lines. the addressing math is simple:
+here is the actual inner loop, lifted from \`src/kernels/ternary_simd.cpp\`:
 
 \`\`\`cpp
-// index into the interleaved buffer
-std::size_t offset = (2 * head_idx * max_tokens * head_dim) + (token_idx * head_dim);
+static inline float32x4_t masked_load4(const float* x, std::uint32_t offset,
+                                       std::uint32_t bits,
+                                       uint32x4_t lane_bits,
+                                       uint32x4_t zero_u32,
+                                       float32x4_t zero_f32) {
+    const float32x4_t values = vld1q_f32(x + offset);
+    const uint32x4_t word    = vdupq_n_u32(bits);
+    const uint32x4_t active  = vcgtq_u32(vandq_u32(word, lane_bits), zero_u32);
+    return vbslq_f32(active, values, zero_f32);
+}
+
+// inside the per-row loop:
+for (std::uint32_t b = 0; b < full_blocks; ++b) {
+    const std::uint64_t pos = matrix->pos_bits[row_base + b];
+    const std::uint64_t neg = matrix->neg_bits[row_base + b];
+    const std::uint32_t base = b << 6U;
+    for (std::uint32_t c = 0; c < 64U; c += 4U) {
+        acc_pos = vaddq_f32(acc_pos, masked_load4(x, base+c, (pos>>c)&0xFU, lane_bits, zero_u32, zero_f32));
+        acc_neg = vaddq_f32(acc_neg, masked_load4(x, base+c, (neg>>c)&0xFU, lane_bits, zero_u32, zero_f32));
+    }
+}
 \`\`\`
 
-## production benchmarks
+the avx2 version is the same shape with 8 lanes and a wider lane mask, \`{1, 2, 4, 8, 16, 32, 64, 128}\`. there is no \`_mm256_maskz_load_ps\` on plain avx2, so the active mask is a \`cmpgt\` result that gets \`_mm256_and_ps\`'d with the loaded float vector.
 
-every optimization is only as good as the numbers it produces. i ran the test suite on a snapdragon x laptop (arm neon) using an optimized release build, and compared the results of our hand-written simd kernel against a clean scalar reference.
+the avx-512 version is cleaner because avx-512 has native mask registers and \`_mm512_maskz_load_ps\`. you can feed the 16-bit slice of the \`uint64\` directly to the masked load, no \`cmpgt\` needed:
 
-![production benchmarks](/ciot-benchmarks.png)
+\`\`\`cpp
+acc_pos = _mm512_add_ps(acc_pos, _mm512_maskz_load_ps((__mmask16)((pos >>  0U) & 0xFFFFU), x + base +  0U));
+acc_pos = _mm512_add_ps(acc_pos, _mm512_maskz_load_ps((__mmask16)((pos >> 16U) & 0xFFFFU), x + base + 16U));
+acc_pos = _mm512_add_ps(acc_pos, _mm512_maskz_load_ps((__mmask16)((pos >> 32U) & 0xFFFFU), x + base + 32U));
+acc_pos = _mm512_add_ps(acc_pos, _mm512_maskz_load_ps((__mmask16)((pos >> 48U) & 0xFFFFU), x + base + 48U));
+\`\`\`
 
-the hand-written arm neon kernel achieves a **5.7x speedup** over the scalar reference path. for a 1024x1024 linear matrix multiply against a vector, the median latency is just **0.54 ms**, delivering a peak throughput of **5.14 gop/s** (giga-operations per second). 
+four masked loads cover an entire 64-column block per accumulator. that is eight masked loads per block total (four pos, four neg). this is about as dense as the compute gets.
 
-most importantly, every benchmark is verified bit-for-bit. the scalar reference and the optimized simd kernels produce identical output checksums. this means the simd version is not sacrificing numerical accuracy for speed. it is computing the exact same result, just doing it by exploiting the instruction set and the bit-plane layout.
+zero \`if\` statements. zero \`else\` statements. no table lookups. no data-dependent branches in the inner loop. the cpu loves this, because what does not exist cannot be mispredicted. the branch predictor never sees this loop and has nothing to do.
 
-## verifying correctness
+**why two accumulators instead of one.** an obvious alternative is to fold the sign in at every step: compute \`(pos_bit - neg_bit) * x[c]\` and accumulate into a single number. it is also a wrong-looking alternative once you think in simd. computing \`(pos - neg)\` per-lane needs both bit planes participating in the same instruction, and turning that into a \`±1\` factor needs a \`sub\` or a \`xor\`. two accumulators dodge the issue entirely. the positives lane is "values where pos_bit = 1, zero otherwise". the negatives lane is symmetric. they never interact until the final reduction, where you do one \`sub\` per row. it is the same arithmetic split into two non-overlapping passes, and it lets each pass use the simplest possible instruction (a masked load or a select-and-add).
 
-when you write your own assembly or intrinsics, you are going to get it wrong. a bit shift by 63 instead of 64, a mask that is off by one, a missing sign extension, and the whole network produces garbage. 
+**tail handling.** matrices whose column count is not a multiple of 64 have a tail block at the end. ciot deals with this in the most boring way possible: a scalar fallback for the last \`cols % 64\` columns. the tail is at most 63 columns out of \`cols\`, which means at worst it costs about 6% of the row at 1024 columns and a lot less at typical model widths. nothing here is clever. you do not need cleverness for code that runs once per row.
 
-to keep the development honest, the c++ binary has a built-in verification suite. it runs every matrix dimension from 64x64 up to 4096x4096, runs the scalar implementation, runs the simd implementation, and asserts that they match. if a single float differs by more than 1e-5, the build fails. 
+**how the three backends end up the same shape.** the kernel is one function, three implementations, all sharing a single struct, a single bit layout, and a single horizontal reduction at the end:
 
-this is why there are no dependencies in the project. to build it, you just run \`make\`. to test it, you run \`./ciot verify\`. that is the entire developer loop. the simplicity of the build is what keeps you focused on the code that actually runs on the silicon.
+| backend | lane width | mask source | "make active" instruction | horizontal sum |
+| --- | --- | --- | --- | --- |
+| avx-512 | 16 | native mask register | \`_mm512_maskz_load_ps\` (mask is the input) | \`_mm512_reduce_add_ps\` |
+| avx2 | 8 | float-vector \`and\` | \`_mm256_cmpgt_epi32\` then \`_mm256_and_ps\` | manual hsum256 |
+| arm neon | 4 | bool-vector \`cmpgt\` | \`vcgtq_u32\` then \`vbslq_f32\` | \`vaddvq_f32\` on aarch64 |
+| scalar | 1 | bit shift | \`(uint64 >> bit) & 1\` cast to int | \`sum\` is a \`float\` |
+
+the differences are real, but they cancel: avx-512 has dedicated mask registers so it skips the cmpgt step entirely, but it also has to do four masked loads per 64-column block instead of one because each load covers 16 lanes. neon has narrower vectors so it covers 64 lanes in sixteen masked loads, but each load is cheaper. across the three, the throughput lands within a factor of two of each other for the same matrix size, which is what you would expect from kernels that all do the same logical work.
+
+**runtime dispatch (or lack of it).** ciot currently picks the simd backend at compile time using preprocessor flags: if the compiler sees \`__AVX512F__\`, the avx-512 kernel becomes \`matvec_ternary_native\`. if it sees \`__AVX2__\`, that becomes \`matvec_ternary_native\`. and so on. there is exactly one \`matvec_ternary_native\` in any given build of the binary. the only runtime choice is whether \`CIOT_BACKEND=scalar\` is set in the environment, in which case \`matvec_ternary_simd\` calls the scalar path instead.
+
+\`\`\`cpp
+DispatchBackend selected_backend() {
+    static DispatchBackend selected = []() {
+        const char* forced = std::getenv("CIOT_BACKEND");
+        if (forced && std::strcmp(forced, "scalar") == 0) return DispatchBackend::Scalar;
+        return DispatchBackend::Native;
+    }();
+    return selected;
+}
+\`\`\`
+
+the static lambda runs exactly once (the first time \`selected_backend\` is called) and the result is cached. every subsequent call is a load of a single integer. there is no per-matvec dispatch cost beyond that.
+
+this design is intentional. proper runtime dispatch on x86, where one binary supports both avx-512 and avx2 hosts and picks at startup via cpuid, requires multi-object compilation with per-tu instruction sets, which the makefile does not currently set up. it is on the next-steps list. for now, you build the binary for the cpu you have. on arm you do not have this problem because there is essentially one neon for the cpus people actually use.
+
+**the part that took the longest.** writing the neon kernel was about an evening. writing the avx2 kernel was another evening. writing the avx-512 kernel was about an hour once i found out mask registers existed. what took multiple days was getting the tail handling, alignment, row scale application, and \`bench_matvec\` warmup logic right so the timings i was reading were not lying to me.
+
+## the rest of the transformer
+
+a kernel alone is not an inference engine. once the matvec is fast and correct, you have to build the surrounding ops out of pieces that are just as careful. ciot's surface area here is intentionally small:
+
+\`\`\`
+rmsnorm           // 6 lines
+rope_table_apply  // table lookup + 2 multiplies per pair
+softmax_inplace   // 2 passes, max-subtract for stability
+kv_cache_append   // memcpy
+mha_attention_decode    // dot products + softmax + weighted sum
+transformer_block_decode_mha  // ties it all together
+\`\`\`
+
+**rmsnorm** is six lines. compute the rms, divide each element by it, multiply by a per-element gain.
+
+\`\`\`cpp
+void rmsnorm(float* out, const float* x, const float* weight, std::uint32_t n, float eps) {
+    float ss = 0.0f;
+    for (std::uint32_t i = 0; i < n; ++i) ss += x[i] * x[i];
+    const float inv_rms = 1.0f / std::sqrt((ss / n) + eps);
+    for (std::uint32_t i = 0; i < n; ++i) out[i] = x[i] * inv_rms * weight[i];
+}
+\`\`\`
+
+no batch dimension. no running statistics. no learnable bias. layernorm-without-the-mean is enough.
+
+**rope** is the part everyone worries about because rotary position embeddings involve a \`cos\` and a \`sin\` per dimension pair. that is fine at training time and a nightmare at decode time, where you call it 32 times per token through the stack. ciot's trick is to precompute the entire \`cos\` and \`sin\` table when the model loads:
+
+\`\`\`cpp
+for (pos = 0; pos < max_position; ++pos)
+    for (i = 0; i < even_dim; i += 2)
+        table->cos[pos*even_dim + i] = std::cos(pos * pow(theta, -i/even_dim));
+        // same for sin
+\`\`\`
+
+at runtime, applying rope is two multiplies and an add per dimension pair, sourced entirely from the table. zero transcendental functions in the hot path. the rope benchmark in the readme finishes a full 1024-dim rotation in 0.45 microseconds. it is statistically zero compared to the rest of the layer.
+
+**the kv cache** is a flat buffer. one for keys, one for values. you append with \`memcpy\`. you attend by walking back through the buffer. for multi-head attention, the layout is interleaved by head so that the inner attention loop is a clean linear walk through memory rather than a strided one.
+
+
+
+if you stored the cache token-major (\`[t0_h0_k, t0_h1_k, t1_h0_k, t1_h1_k, ...]\`), every key for a given head would be \`num_heads * head_dim\` floats apart. that is a strided load. the cpu prefetcher would still pull it, but you would waste cache lines on the keys you do not want, and on x86 the gather/scatter pattern would dominate the runtime. by grouping all of head 0's keys contiguously, the inner dot-product loop walks straight through memory and the hardware prefetcher does the right thing automatically.
+
+**attention itself** is standard scaled dot-product with causal masking. it lives in \`mha_attention_decode\` in \`src/model/mha_cache.cpp\` and the entire function is about thirty lines:
+
+\`\`\`cpp
+for (h = 0; h < num_heads; ++h) {
+    const float* keys   = cache->buffer + 2*h * max_tokens * head_dim;
+    const float* values = keys + max_tokens * head_dim;
+    const float* q      = query + h * head_dim;
+    float* scores       = score_scratch + h * max_tokens;
+
+    for (t = 0; t < used; ++t) {
+        const float* k = keys + t * head_dim;
+        float dot = 0.0f;
+        for (i = 0; i < head_dim; ++i) dot += q[i] * k[i];
+        scores[t] = dot * scale;
+    }
+    softmax_inplace(scores, used);
+
+    float* out = attn_out + h * head_dim;
+    for (i = 0; i < head_dim; ++i) out[i] = 0.0f;
+    for (t = 0; t < used; ++t)
+        for (i = 0; i < head_dim; ++i)
+            out[i] += scores[t] * values[t*head_dim + i];
+}
+\`\`\`
+
+three loops per head, all of them dense linear walks. softmax in the middle is two passes: one to find the max for numerical stability, one to exp and normalize.
+
+put it all together and you have a transformer decode block: rmsnorm, then q/k/v projections via ternary matvec, rope the q and k, append k/v to the cache, attend over the accumulated cache, project the attention output, residual add, rmsnorm again, ffn with relu (two more ternary matvecs), residual add. that's \`transformer_block_decode_mha\` in \`src/model/tiny_transformer.cpp\`, and it's the whole thing for one layer.
+
+**six ternary matvecs per layer.** that's the load. four for attention (q, k, v, output) and two for the ffn (up, down). everything between them is float arithmetic on \`dim\`-sized vectors, which is cheap because \`dim\` is at most a few hundred or thousand. the matvecs dominate the runtime. the rest of the layer is overhead that scales linearly with \`dim\`, while a matvec scales as \`dim * dim\`. this is why the readme's transformer-256 benchmark finishes in 0.15 ms and the bare 1024x1024 matvec is 0.54 ms: a full transformer block with \`dim = 256\` runs the six matvecs at \`256x256\` each, plus all the attention plumbing, and the total cost lands a third of one bigger matvec.
+
+**rope table memory.** at \`max_position = 64\` and \`dim = 256\`, the cos and sin tables are each 64 \\* 256 \\* 4 bytes = 64 kb. that fits comfortably in L1 on every cpu in the supported list. for \`max_position = 2048\` and \`dim = 1024\`, the tables are 8 mb each, which spills out of L2. at that point you have a choice between recomputing on the fly (which costs a \`cos\` and a \`sin\` per dimension pair) or eating the L3 traffic. ciot picks the table because L3 traffic is roughly free compared to a software \`cos\` call, and decode-time inference never benefits from streaming a computation in chunks.
+
+**why the cache layout is interleaved by head.** if you stored the cache token-major (\`[t0_h0_k, t0_h1_k, t1_h0_k, t1_h1_k, ...]\`), every key for a given head would be \`num_heads * head_dim\` floats apart in memory. that is a strided load. the cpu prefetcher would still pull it, but you would waste cache lines on the keys belonging to other heads, and on x86 the gather pattern would dominate the runtime once \`num_heads\` gets big. by grouping all of head 0's keys contiguously, the inner dot-product loop walks straight through memory and the hardware prefetcher does exactly the right thing automatically. there is no software prefetch in this code. there does not need to be.
+
+the layout is set once in \`mha_kv_cache_init\`. it is one allocation, \`2 * num_heads * max_tokens * head_dim\` floats, with the layout \`[head0_K | head0_V | head1_K | head1_V | ...]\`. append is one \`memcpy\` per head per side. attention is a triple-nested loop with no allocation. the cache never resizes. if you exceed \`max_tokens\` it stops appending and you get whatever the model can produce from the prefix you have. this is the right behavior for decode-time inference on a fixed context budget.
+
+## how we know it is correct
+
+the easiest way to make a fast kernel produce wrong answers is to not check. ciot's verification strategy is a single environment variable: \`CIOT_BACKEND=scalar\`.
+
+\`\`\`cpp
+DispatchBackend selected_backend() {
+    static DispatchBackend selected = []() {
+        const char* forced = std::getenv("CIOT_BACKEND");
+        if (forced && std::strcmp(forced, "scalar") == 0) return DispatchBackend::Scalar;
+        return DispatchBackend::Native;
+    }();
+    return selected;
+}
+
+void matvec_ternary_simd(const TernaryMatrix* matrix, const float* x, float* y) {
+    if (selected_backend() == DispatchBackend::Scalar) {
+        matvec_ternary_ref(matrix, x, y);   // pure scalar loop
+        return;
+    }
+    matvec_ternary_native(matrix, x, y);    // simd
+}
+\`\`\`
+
+the scalar path is a textbook reference. it loops rows, then columns, decodes the bit, multiplies, accumulates. simple enough that it is impossible to be subtly wrong:
+
+\`\`\`cpp
+for (r = 0; r < matrix->rows; ++r) {
+    float sum = 0.0f;
+    for (c = 0; c < matrix->cols; ++c) {
+        // decode the ternary value via the bit planes
+        const std::uint32_t block = c >> 6U;
+        const std::uint64_t mask  = 1ULL << (c & 63U);
+        const int sign = ((pos[row_base + block] & mask) != 0)
+                       - ((neg[row_base + block] & mask) != 0);
+        sum += sign * x[c];
+    }
+    y[r] = sum * row_scale[r];
+}
+\`\`\`
+
+every benchmark computes a checksum (\`sum(y)\`) and prints it next to the timing. if the simd checksum does not match the scalar checksum for the same matrix and input, the simd path is broken. for ciot, all three simd variants produce exactly the same checksum as the scalar reference: \`1.951170\` for the 1024x1024 hero benchmark. they are not subtly wrong. they are not faster because they are cheating on numerics. they are faster because the cpu does less work per cycle.
+
+this also catches the second-most-common bug, which is the compiler optimizing the whole benchmark away because nothing reads \`y\`. summing \`y\` reads every output element. the loop has to actually happen.
+
+**a note on floating-point reproducibility.** the checksums match across simd and scalar because the order of operations is carefully aligned. floating-point addition is not associative: \`(a + b) + c\` can differ from \`a + (b + c)\` in the last bit, and a vectorized accumulator inherently changes the order. ciot avoids this trap by accumulating into \`acc_pos\` and \`acc_neg\` lane-wise in the same logical order as the scalar reference, then doing the horizontal reduction at the end with a deterministic tree (\`vaddvq\` on neon, \`_mm512_reduce_add_ps\` on avx-512, \`_mm_hadd_ps\` cascade on avx2). the per-lane order is consistent across runs and across backends, which is why the checksums collapse to the same hex bits.
+
+if you were doing this for a research result, you would care more about absolute reproducibility (different cpus could still differ at very low bits). for an inference engine you care about "the simd path does not introduce a systematic bias relative to the reference path," which is the stronger property and which the checksum match verifies cleanly.
+
+**what the checksum does not catch.** the checksum is a sum, so it does not catch a transposition of two outputs that exactly cancels. in practice this never happens for real bit-plane bugs (they always introduce a magnitude error), but the production test suite also runs a per-element comparison with a tolerance to be safe. the readme just reports the checksum because it is the cleanest one-number sanity check, and because the actual error pattern of a broken kernel almost always shows up as a wildly different checksum, not a subtle one.
+
+## the numbers
+
+every measurement below comes from \`--bench-linear-pro\` and similar commands in the repo. warmup is 20 iterations, repeats is 9. the median is the headline number, the p95 catches thermal throttling, the checksum proves nothing was skipped.
+
+<p align="center">
+  <img src="ciot-figures/ciot_latency.png" width="700" alt="scalar vs neon, 1024x1024 ternary matvec">
+</p>
+
+5.7x speedup is the linear-matvec hero number on snapdragon x. for everything else:
+
+<p align="center">
+  <img src="ciot-figures/ciot_benchmarks.png" width="780" alt="all seven benchmarks, checksum verified">
+</p>
+
+a few things worth noting from the full table:
+
+- **the kernel is well-behaved across cache levels.** across 256, 512, 1024, 2048 the throughput stays at 7.9 to 8.8 gop/s. that is the matrix going from "fits in l1" to "fits in l2" to "barely fits in l3" without the kernel falling off a cliff. the bit-plane format helps here: at 1024x1024 the full weight set is 36 kb, which is happy in any modern l2.
+- **rope is statistically free.** 0.45 microseconds for a 1024-dim rotation when the table is precomputed. compare that to the milliseconds people sometimes report when they call \`cosf\` per dimension per token.
+- **the multi-head decode block is the same speed as the single-head one.** because the heads share the same attention shape and the matvec is the dominant cost, splitting \`dim\` into \`num_heads * head_dim\` does not change the floor.
+- **the scalar path is a real reference, not a strawman.** it's the same \`-O3 -march=native\` binary, same matrix, same input, same checksum. it just decodes one bit at a time instead of 64.
+
+**what "logical gop/s" means.** every benchmark in ciot reports throughput as "logical gop/s", which counts a ternary multiply-accumulate as two ops (one multiply, one add), the same way a dense float gemm would count it. it is a conservative way of comparing against dense baselines: ciot's "real" cost per ternary mac is closer to a third of a dense float mac, but reporting it that way would inflate the numbers without making them comparable to anything. the convention is also why you can run \`--bench-suite\` against a \`cublas\` number and have a fair conversation about who is doing what.
+
+**why median, not mean.** the benchmark harness runs \`iters\` matvecs per repeat and \`repeats\` repeats. for the hero benchmark that's 200 \\* 9 = 1,800 matvecs total. it sorts the per-repeat times and reports the median, the min, the p95, and the max. the mean is omitted on purpose. medians are robust to a single bad sample (an OS context switch, an interrupt, a thermal blip). means are not. p95 is included because thermal throttling will not show up in the median but it will absolutely show up at the tail. if you see a benchmark where p95 is more than 2x the median, you're throttling.
+
+**reproducing the headline.** if you want the headline 0.54 ms number on a snapdragon x, the commands are in the readme. if you want it on x86, you compile with \`make avx2\` or \`make avx512\`. on a recent intel laptop the avx-512 kernel lands somewhere between 0.3 and 0.5 ms depending on whether the cpu is in the right p-state when the benchmark starts. warm up before measuring. plug the laptop in. close the browser tabs.
+
+## the python side, briefly
+
+the only thing besides c++ in the repo is a python toolchain. all of it is stdlib only. no numpy, no pytorch.
+
+- \`scripts/pack_ternary.py\` (~130 lines) is the float32-to-\`.bits\` packer with the error compensation shown above.
+- \`scripts/train_tiny_transformer.py\` (~1,200 lines) is a pure-python transformer trainer: word-level tokenizer, multi-head causal attention with full forward/backward gradients, rmsnorm with analytical backward, sgd with gradient clipping, row-wise ternary quantization with error compensation, \`.bits\` model export.
+- \`scripts/run_tests.py\` is the harness that compiles the binary, runs every benchmark, compares simd against scalar, validates checksums, and emits a csv.
+
+the trainer is not going to produce a useful model. its architecture is tiny by design and sgd is the wrong optimizer for this task. what it does prove is that the pipeline closes: you can feed it text on one end and pull tokens out the other end through the c++ inference loop, with weights quantized to ternary by the python side. closing that loop end-to-end is the part i added after the social media post. before that, the c++ side could load synthetic weights and time them. now it can load a real trained model directory and emit text.
+
+the constraint of stdlib-only was deliberate. ciot ships as one c++ binary, and the toolchain that produces its inputs should not require a 2 gb pip install. the trainer is slow (pure-python list-of-lists matmul, no fma anywhere) but it is dependency-free and you can read every line of it. if you outgrow it, the \`.bits\` format is documented in the header and you can produce one from pytorch in about thirty lines.
+
+\`scripts/run_tests.py\` is what turns the readme into a verifiable claim. it builds the binary fresh, runs every benchmark in sequence, captures the native simd output, then re-runs the matvec hero with \`CIOT_BACKEND=scalar\` and compares the checksum. it emits a csv to \`data/\` and a formatted report to stdout. if the comparison passes on your machine, the kernel is working on your machine.
+
+## what i would change
+
+the engine is intentionally narrow. if something does not help run ternary weights faster, it goes in a python script outside the core. there are a few things i still want to add:
+
+- **x86 runtime dispatch.** right now the build picks between avx-512 and avx2 at compile time. i want both paths in one binary, with the dispatcher picking at startup based on cpuid. this is mostly a build-system problem, not a kernel problem.
+- **a real batched kernel.** the current \`matmat_ternary_simd\` runs the single-token matvec \`batch\` times. for true prompt-style batching, you want to load the weight row once and reuse it across the batch from registers. that's a kernel that fuses the outer batch loop into the inner column loop.
+- **a real tokenizer.** the bpe path in the repo handles ascii correctly and stumbles on unicode. closing this means a byte-level bpe table with proper utf-8 handling, not a port of the current logic.
+- **fixing the embedding bypass.** in \`--model-generate\` the embedding step is currently a one-hot vector indexed by the token id, instead of a real lookup into the trained \`embed\` matrix. trained models lose half their expressive power because of this. it's a one-day fix.
+
+what i would not change is the storage format or the kernel shape. the bit-plane layout and the masked-add structure are the parts that make this whole thing fast and verifiable. everything else can be a python script.
+
+## closing
+
+ternary inference does not need a framework. it needs a kernel that takes bits seriously and a handful of glue around it that does not fight the kernel. ciot is the smallest version of that idea i could ship as one binary.
+
+the code is on github at [@Cintu07/ciot](https://github.com/Cintu07/ciot). the readme has the build commands. if you want to read it in order, start with \`src/kernels/ternary_simd.cpp\`, then \`src/model/model_loader.cpp\`, then \`src/main.cpp\`. the 1024x1024 hero benchmark prints checksum \`1.951170\` on every supported cpu.
+
+\`\`\`
+git clone https://github.com/Cintu07/ciot
+cd ciot && make
+./bin/ciot --bench-linear-pro 1024 1024 200 9 20
+\`\`\`
+
+thanks for reading.
+
+
 `,
   },
   {
