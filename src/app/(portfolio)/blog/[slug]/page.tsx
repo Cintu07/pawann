@@ -47,8 +47,8 @@ export default async function BlogPostPage({ params }: Props) {
   if (!post) {
     return (
       <div className="flex flex-col items-center justify-center py-20 max-w-[700px] mx-auto w-full">
-        <h1 className="text-2xl text-white mb-4">Post not found</h1>
-        <Link href="/blog" className="text-neutral-500 hover:text-white transition-colors uppercase tracking-widest text-xs font-mono flex items-center gap-2">
+        <h1 className="text-2xl text-ink mb-4">Post not found</h1>
+        <Link href="/blog" className="text-ink-faint hover:text-gold transition-colors uppercase tracking-widest text-xs font-mono flex items-center gap-2">
           <ChevronLeft className="w-4 h-4" /> Back to blog
         </Link>
       </div>

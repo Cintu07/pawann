@@ -22,22 +22,22 @@ export default function ResumeModal({ isOpen, onClose }: { isOpen: boolean; onCl
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="relative w-full max-w-4xl h-[85vh] bg-[#0a0a0a] border border-white/10 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+          className="relative w-full max-w-4xl h-[85vh] bg-surface border border-white/10 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-white/[0.02]">
-            <h2 className="text-lg font-medium text-white tracking-wide">Resume</h2>
+          <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-surface-2/60">
+            <h2 className="text-lg font-medium text-ink tracking-wide">Resume</h2>
             <div className="flex items-center gap-4">
               <a
                 href="/pavankalyan.pdf"
                 download="Pawan_Kalyan_Resume.pdf"
-                className="text-sm font-mono bg-white/10 hover:bg-white/20 text-white px-4 py-1.5 rounded transition-colors"
+                className="text-sm font-mono bg-white/10 hover:bg-white/20 text-ink px-4 py-1.5 rounded transition-colors"
               >
                 Download PDF
               </a>
               <button
                 onClick={onClose}
-                className="text-neutral-400 hover:text-white transition-colors"
+                className="text-ink-soft hover:text-gold transition-colors"
                 aria-label="Close"
               >
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -55,9 +55,9 @@ export default function ResumeModal({ isOpen, onClose }: { isOpen: boolean; onCl
               type="application/pdf"
               className="absolute inset-0 w-full h-full"
             >
-              <div className="flex flex-col items-center justify-center h-full gap-4 text-neutral-400">
+              <div className="flex flex-col items-center justify-center h-full gap-4 text-ink-soft">
                 <p>Your browser doesn't support embedded PDFs.</p>
-                <a href="/pavankalyan.pdf" className="text-white underline decoration-dotted underline-offset-4">
+                <a href="/pavankalyan.pdf" className="text-ink underline decoration-dotted underline-offset-4">
                   Click here to download it instead.
                 </a>
               </div>

@@ -28,13 +28,13 @@ export default function BlogPostClient({ post }: { post: BlogPost }) {
       variants={fade}
       className="max-w-[700px] mx-auto w-full pb-20"
     >
-      <Link href="/blog" className="inline-flex items-center gap-2 text-[12px] font-mono text-neutral-500 hover:text-white transition-colors uppercase tracking-[0.2em] mb-12">
+      <Link href="/blog" className="inline-flex items-center gap-2 text-[12px] font-mono text-ink-faint hover:text-gold transition-colors uppercase tracking-[0.2em] mb-12">
         <ChevronLeft className="w-4 h-4" /> Back to blog
       </Link>
 
       {/* Hero Image */}
       {post.imageURL && (
-        <div className="relative aspect-[16/10] mb-10 rounded-2xl overflow-hidden shadow-2xl border border-white/[0.05]">
+        <div className="relative aspect-[16/10] mb-10 rounded-2xl overflow-hidden shadow-2xl border border-rule">
             <img 
             src={post.imageURL} 
             alt={post.title}
@@ -47,20 +47,20 @@ export default function BlogPostClient({ post }: { post: BlogPost }) {
       {/* Metadata */}
       <div className="flex gap-2 mb-6 flex-wrap">
         {post.tags.map(tag => (
-          <span key={tag} className="text-[10px] uppercase tracking-widest text-neutral-500 font-mono px-2.5 py-1 rounded bg-white/[0.03] border border-white/[0.05]">
+          <span key={tag} className="text-[10px] uppercase tracking-widest text-ink-faint font-mono px-2.5 py-1 rounded bg-surface-2/70 border border-rule">
             {tag}
           </span>
         ))}
       </div>
 
-      <h1 className="text-[32px] md:text-[44px] font-semibold text-white mb-6 tracking-tight leading-[1.1] text-balance">
+      <h1 className="text-[32px] md:text-[44px] font-semibold text-ink mb-6 tracking-tight leading-[1.1] text-balance">
         {post.title}
       </h1>
 
       <div className="flex items-center gap-4 mb-12">
-        <span className="text-[11px] font-mono uppercase tracking-[0.25em] text-neutral-500">{post.date}</span>
+        <span className="text-[11px] font-mono uppercase tracking-[0.25em] text-ink-faint">{post.date}</span>
         <span className="w-1 h-1 rounded-full bg-neutral-700" />
-        <span className="flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-[0.25em] text-neutral-500">
+        <span className="flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-[0.25em] text-ink-faint">
           <Clock className="w-3.1 h-3.1" /> 12 MIN READ
         </span>
       </div>
@@ -70,16 +70,16 @@ export default function BlogPostClient({ post }: { post: BlogPost }) {
         <ReactMarkdown 
           remarkPlugins={[remarkGfm]}
           components={{
-            h1: ({node, ...props}) => <h1 className="text-[32px] md:text-[40px] font-bold text-white mt-12 mb-8 tracking-tighter leading-tight" {...props} />,
+            h1: ({node, ...props}) => <h1 className="text-[32px] md:text-[40px] font-bold text-ink mt-12 mb-8 tracking-tighter leading-tight" {...props} />,
             h2: ({node, ...props}) => <h2 className="text-[20px] md:text-[24px] font-bold text-neutral-100 mt-12 mb-6 tracking-tight" {...props} />,
             p: ({node, children, ...props}: any) => {
               const hasImg = node?.children?.some((child: any) => child.tagName === "img");
               if (hasImg) {
                 return <>{children}</>;
               }
-              return <p className="text-neutral-400 leading-relaxed text-[16px] mb-6" {...props}>{children}</p>;
+              return <p className="text-ink-soft leading-relaxed text-[16px] mb-6" {...props}>{children}</p>;
             },
-            li: ({node, ...props}) => <li className="text-neutral-400 leading-relaxed text-[16px] mb-2 list-none flex gap-3"><span className="text-neutral-600 mt-1">•</span><span {...props} /></li>,
+            li: ({node, ...props}) => <li className="text-ink-soft leading-relaxed text-[16px] mb-2 list-none flex gap-3"><span className="text-ink-faint mt-1">•</span><span {...props} /></li>,
             code: ({node, className, children, ...props}: any) => {
               const match = /language-(\w+)/.exec(className || '');
               const isBlock = !!match || String(children).includes('\n') || String(children).length > 60 || String(children).startsWith('THEOREM');
@@ -96,7 +96,7 @@ export default function BlogPostClient({ post }: { post: BlogPost }) {
               }
 
               return (
-                <div className="my-8 rounded-xl overflow-hidden border border-white/[0.05] shadow-2xl bg-[#0d0d0d]">
+                <div className="my-8 rounded-xl overflow-hidden border border-rule shadow-2xl bg-[#0d0d0d]">
                     <SyntaxHighlighter
                         language={match ? match[1] : 'text'}
                         style={vscDarkPlus}
@@ -120,29 +120,29 @@ export default function BlogPostClient({ post }: { post: BlogPost }) {
               );
             },
             blockquote: ({node, children, ...props}: any) => (
-              <blockquote className="my-8 p-6 rounded-2xl bg-white/[0.03] border border-white/[0.05] relative overflow-hidden group" {...props}>
+              <blockquote className="my-8 p-6 rounded-2xl bg-surface-2/70 border border-rule relative overflow-hidden group" {...props}>
                 <div className="absolute top-0 left-0 w-1 h-full bg-neutral-600" />
-                <div className="text-[16px] md:text-[18px] text-neutral-300 italic leading-relaxed relative z-10">
+                <div className="text-[16px] md:text-[18px] text-ink-soft italic leading-relaxed relative z-10">
                   {children}
                 </div>
               </blockquote>
             ),
-            hr: ({node, ...props}) => <hr className="my-12 border-white/[0.08]" {...props} />,
+            hr: ({node, ...props}) => <hr className="my-12 border-rule" {...props} />,
             img: ({node, ...props}: any) => (
-                <div className="my-10 rounded-2xl overflow-hidden border border-white/[0.05]">
+                <div className="my-10 rounded-2xl overflow-hidden border border-rule">
                     <img className="w-full object-contain max-h-[500px]" {...props} alt={props.alt || "blog image"} />
                 </div>
             ),
             table: ({node, ...props}) => (
-              <div className="my-10 w-full overflow-x-auto rounded-2xl border border-white/[0.05] bg-white/[0.01] shadow-xl">
+              <div className="my-10 w-full overflow-x-auto rounded-2xl border border-rule bg-surface-2/40 shadow-xl">
                 <table className="w-full text-left border-collapse text-[13px] md:text-[14px]" {...props} />
               </div>
             ),
-            thead: ({node, ...props}) => <thead className="bg-white/[0.02] border-b border-white/[0.05]" {...props} />,
+            thead: ({node, ...props}) => <thead className="bg-surface-2/60 border-b border-rule" {...props} />,
             tbody: ({node, ...props}) => <tbody className="divide-y divide-white/[0.02]" {...props} />,
-            tr: ({node, ...props}) => <tr className="hover:bg-white/[0.01] transition-colors" {...props} />,
-            th: ({node, ...props}) => <th className="px-4 py-3 font-mono text-[10px] font-bold uppercase tracking-wider text-neutral-400" {...props} />,
-            td: ({node, ...props}) => <td className="px-4 py-3.5 text-neutral-300 font-sans align-middle leading-relaxed" {...props} />
+            tr: ({node, ...props}) => <tr className="hover:bg-surface-2/40 transition-colors" {...props} />,
+            th: ({node, ...props}) => <th className="px-4 py-3 font-mono text-[10px] font-bold uppercase tracking-wider text-ink-soft" {...props} />,
+            td: ({node, ...props}) => <td className="px-4 py-3.5 text-ink-soft font-sans align-middle leading-relaxed" {...props} />
           }}
         >
           {post.content}

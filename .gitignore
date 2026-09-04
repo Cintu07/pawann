@@ -52,3 +52,5 @@ next-env.d.ts
 /repos.json
  
 F o n t s /  
+.shots/
+shot.js

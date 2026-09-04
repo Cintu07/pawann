@@ -30,7 +30,7 @@ export default function Blog() {
     >
       <div className="flex items-center gap-3 mb-12">
         <div className="h-[2px] w-6 bg-gradient-to-r from-neutral-300 to-transparent rounded" />
-        <h1 className="text-[20px] font-semibold text-white tracking-wide leading-none">blog</h1>
+        <h1 className="text-[20px] font-semibold text-ink tracking-wide leading-none">blog</h1>
       </div>
       
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-10 w-full">
@@ -44,7 +44,7 @@ export default function Blog() {
             >
               {/* Cover Image */}
               {post.imageURL && (
-                <div className="aspect-[16/10] w-full rounded-2xl overflow-hidden border border-white/[0.05] bg-neutral-900 group-hover:border-white/[0.1] transition-all duration-300 shadow-md">
+                <div className="aspect-[16/10] w-full rounded-2xl overflow-hidden border border-rule bg-neutral-900 group-hover:border-white/[0.1] transition-all duration-300 shadow-md">
                   <img 
                     src={post.imageURL} 
                     alt={post.title}
@@ -68,12 +68,12 @@ export default function Blog() {
               </h2>
 
               {/* Description */}
-              <p className="text-neutral-400 text-[13px] leading-relaxed line-clamp-2">
+              <p className="text-ink-soft text-[13px] leading-relaxed line-clamp-2">
                 {post.description}
               </p>
 
               {/* Metadata */}
-              <div className="flex items-center gap-2 text-neutral-500 font-mono text-[9px] uppercase tracking-widest mt-1">
+              <div className="flex items-center gap-2 text-ink-faint font-mono text-[9px] uppercase tracking-widest mt-1">
                 <span>{post.date}</span>
                 <span>•</span>
                 <span>{readingTime}</span>

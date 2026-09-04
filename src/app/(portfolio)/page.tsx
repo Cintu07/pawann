@@ -1,144 +1,184 @@
 "use client";
 
+import Link from "next/link";
 import { motion, type Variants, type Easing } from "framer-motion";
 import { SiSpotify } from "react-icons/si";
 import useSWR from "swr";
 import ScrambleText from "@/components/ScrambleText";
+import SceneArt from "@/components/SceneArt";
+import { Draggable, useArt } from "@/components/ArtTuner";
+import { posts } from "./blog/data";
+import { featured } from "@/data/projects";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
-function SpotifyWidget() {
-  const { data } = useSWR('/api/now-playing', fetcher, { refreshInterval: 10000 });
+function SectionHead({ label, href, cta }: { label: string; href: string; cta: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 pb-2 border-b border-rule">
+      <h2 className="font-mono text-[12.5px] text-ink-faint tracking-wide">{label}</h2>
+      <Link
+        href={href}
+        className="font-mono text-[12px] text-ink-faint hover:text-gold transition-colors shrink-0"
+      >
+        {cta} →
+      </Link>
+    </div>
+  );
+}
 
+function SpotifyWidget() {
+  const { data } = useSWR("/api/now-playing", fetcher, { refreshInterval: 10000 });
   if (!data) return null;
 
-  // Fallback to a placeholder if nothing is playing, or show what is actually playing
-  const isPlaying = data.isPlaying;
-  const title = data.title || "Not Playing Anything";
-  const artist = data.artist || "Spotify";
-  const songUrl = data.songUrl || "#";
-  const imageURL = data.albumImageUrl;
-
   return (
-    <div className="group relative rounded-xl bg-gradient-to-r from-zinc-500 to-stone-500 p-[1px] shadow-2xl hover:scale-[102%] transition-all duration-300 w-full max-w-[620px] mt-10">
-      <div className="flex justify-between items-center h-full bg-[#111] p-4 rounded-[11px] overflow-hidden relative">
-        <div className="absolute inset-0 bg-gradient-to-r from-[#1DB954]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-        
-        <div className="flex flex-col justify-between h-full gap-3 relative z-10">
-          <p className={`flex items-center gap-2 m-0 text-xs font-mono tracking-wide ${isPlaying ? 'text-[#1DB954]' : 'text-neutral-500'}`}>
-            <SiSpotify className="w-4 h-4" />
-            {isPlaying ? "NOW PLAYING" : "LAST PLAYED"}
-          </p>
-          
-          <div className="flex flex-col gap-0.5">
-            <a
-              className="text-neutral-200 hover:text-white font-medium truncate max-w-[220px] transition-colors"
-              href={songUrl}
-              target="_blank"
-              rel="noreferrer"
-            >
-              {title}
-            </a>
-            <p className="text-neutral-500 text-sm m-0 truncate max-w-[220px]">
-              {artist}
-            </p>
-          </div>
-        </div>
-
-        <div className="h-16 w-16 relative z-10 shrink-0">
-          {imageURL ? (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img
-              className="rounded-md object-cover shadow-lg w-full h-full grayscale group-hover:grayscale-0 transition-all duration-500"
-              src={imageURL}
-              alt={title}
-            />
-          ) : (
-            <div className="w-full h-full bg-zinc-800 rounded-md flex items-center justify-center shadow-lg">
-              <SiSpotify className="w-6 h-6 text-zinc-600" />
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
+    <a
+      href={data.songUrl || "#"}
+      target="_blank"
+      rel="noreferrer"
+      className="group inline-flex items-center gap-2 mt-10 font-mono text-[12px] text-ink-faint hover:text-gold transition-colors max-w-full"
+    >
+      <SiSpotify className="w-3.5 h-3.5 shrink-0" />
+      <span className="truncate">
+        {data.isPlaying ? "now playing" : "last played"} · {data.title || "nothing"}
+      </span>
+    </a>
   );
 }
 
 function VisitorCount() {
-  const { data, error } = useSWR('/api/visit', fetcher, { 
-    revalidateOnFocus: true, 
-    revalidateOnReconnect: true,
-    refreshInterval: 0 
-  });
-
-  // Handle both loading state and falsy zero value properly
-  const visits = data?.visits !== undefined ? data.visits.toLocaleString() : "...";
-
+  const { data } = useSWR("/api/visit", fetcher, { revalidateOnFocus: true });
+  const visits = data?.visits;
+  if (typeof visits !== "number" || visits < 1) return null;
   return (
-    <div className="mt-8 text-[13px] font-mono text-zinc-500 tracking-wide flex items-center gap-2">
-      <div className="w-1.5 h-1.5 bg-zinc-500 rounded-full animate-pulse opacity-60" />
-      you're the {visits}th visitor
-    </div>
+    <p className="mt-2 font-mono text-[12px] text-ink-faint">
+      visitor {visits.toLocaleString()}
+    </p>
   );
 }
 
 export default function Home() {
-  const customEasing: Easing = [0.25, 0.1, 0.25, 1];
+  const { pos: pagoda } = useArt("pagoda");
+  const easing: Easing = [0.25, 0.1, 0.25, 1];
   const fade: Variants = {
     hidden: { opacity: 0, y: 12 },
-    visible: { 
-      opacity: 1, 
-      y: 0, 
-      transition: { duration: 0.8, ease: customEasing } 
-    }
+    visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: easing } },
   };
 
   return (
-    <motion.main
-      initial="hidden"
-      animate="visible"
-      variants={fade}
-      className="max-w-[700px] mx-auto w-full"
-    >
-      <div className="flex flex-col sm:flex-row items-center sm:items-center gap-6 sm:gap-8 mb-12 text-center sm:text-left">
-        <div className="relative isolate">
-          <svg className="absolute -inset-4 w-[calc(100%+32px)] h-[calc(100%+32px)] pointer-events-none opacity-60" viewBox="0 0 100 100">
-            <circle cx="50" cy="50" r="48" fill="none" stroke="#52525b" strokeWidth="0.5" strokeDasharray="8 12" strokeLinecap="round">
-              <animateTransform attributeName="transform" type="rotate" from="0 50 50" to="360 50 50" dur="20s" repeatCount="indefinite" />
-            </circle>
-            <circle cx="50" cy="50" r="44" fill="none" stroke="#a1a1aa" strokeWidth="0.5" strokeDasharray="60 140" strokeLinecap="round">
-              <animateTransform attributeName="transform" type="rotate" from="360 50 50" to="0 50 50" dur="12s" repeatCount="indefinite" />
-            </circle>
-          </svg>
-          
+    <motion.main initial="hidden" animate="visible" variants={fade} className="w-full relative">
+      <div className="relative">
+        {/* ---------------- bio ---------------- */}
+        {/* the pagoda is anchored to this block, not to the page, so it ends
+            exactly where the bio ends. no guessed pixel height: inset-y-0 ties
+            its bottom edge to the projects rule below. */}
+        <div className="relative">
+          <Draggable
+            artKey="pagoda"
+            className="select-none absolute top-0 -bottom-6 right-0 overflow-hidden hidden lg:block"
+            style={{ width: pagoda.w }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/art/pagoda.webp"
+              alt=""
+              aria-hidden="true"
+              className="absolute bottom-0 right-0 w-full h-auto opacity-[0.16] mix-blend-multiply"
+            />
+          </Draggable>
+
+        <header className="flex items-center gap-4 sm:gap-5 mb-7">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="https://avatars.githubusercontent.com/u/178455858?v=4"
             alt="Pawan"
-            className="w-[80px] h-[80px] sm:w-[90px] sm:h-[90px] rounded-full grayscale hover:grayscale-0 transition-all duration-700 object-cover relative z-10 shadow-2xl ring-1 ring-white/10"
+            className="w-[68px] h-[68px] sm:w-[78px] sm:h-[78px] rounded-full object-cover ring-1 ring-rule-strong shrink-0"
           />
-        </div>
-
-        <div className="flex flex-col justify-center gap-1.5 sm:gap-2.5">
-          <h1 className="text-[32px] sm:text-[40px] font-semibold bg-clip-text text-transparent bg-gradient-to-br from-white to-neutral-400 tracking-tight leading-none">
-            <ScrambleText text="Pawan" scrambleDelay={1200} />
-          </h1>
-          <div className="text-[13px] sm:text-sm font-mono text-neutral-400 tracking-wide mt-1">
-            founding engineer
+          <div className="min-w-0">
+            <h1 className="text-[30px] sm:text-[38px] font-semibold text-ink tracking-tight leading-none mb-1.5">
+              <ScrambleText text="pawan" scrambleDelay={1200} />
+            </h1>
+            <p className="font-mono text-[12px] sm:text-[12.5px] text-ink-faint tracking-wide">
+              Cintu07 · rust/c++ · databases &amp; inference
+            </p>
           </div>
+        </header>
+
+        <div className="space-y-3 text-ink-soft leading-relaxed text-[15.5px] sm:text-[16px] max-w-[62ch]">
+          <p>self taught, just out of uni. rust and c++, databases and inference.</p>
+          <p>
+            27 prs merged into repos i don&apos;t own.{" "}
+            <span className="font-mono text-[14px] text-gold">arrow-rs</span>,{" "}
+            <span className="font-mono text-[14px] text-gold">tinygrad</span>,{" "}
+            <span className="font-mono text-[14px] text-gold">helix-db</span>,{" "}
+            <span className="font-mono text-[14px] text-gold">slatedb</span>, nvidia&apos;s{" "}
+            <span className="font-mono text-[14px] text-gold">dynamo</span>. i find the
+            guard that exists on one code path and is missing on its twin.
+          </p>
+          <p>
+            built <span className="text-ink font-medium">ciot</span>,{" "}
+            <span className="text-ink font-medium">strata</span> and{" "}
+            <span className="text-ink font-medium">aegis</span>. my laptop is aarch64, so i
+            catch what x86-only ci can&apos;t ^^
+          </p>
         </div>
-      </div>
+        </div>
 
-      <div className="space-y-6 text-[#999] leading-relaxed text-[17px] max-w-[620px]">
-        <p>
-          Hey, I am a founding engineer focused on building robust backend infrastructure and highly intuitive interfaces. Right now, I am spending my time engineering next-generation voice agents.
-        </p>
-        <p>
-          I love keeping things simple, writing code that actually makes sense, and building systems that don't break. I spend most of my time working heavily with <span className="font-mono text-[14px]">Go</span>, <span className="font-mono text-[14px]">Rust</span>, <span className="font-mono text-[14px]">TypeScript</span>, and <span className="font-mono text-[14px]">C++</span>.
-        </p>
-      </div>
+        {/* ---------------- projects ---------------- */}
+        <section className="mt-10">
+          <SectionHead label="projects" href="/projects" cta="see all" />
+          <ul>
+            {featured.map((p) => (
+              <li key={p.name} className="border-b border-rule">
+                <a href={p.url} target="_blank" rel="noreferrer" className="group block py-3.5">
+                  <div className="sm:flex sm:items-baseline sm:justify-between sm:gap-4 mb-1">
+                    <h3 className="text-[15px] text-ink font-medium group-hover:text-gold transition-colors">
+                      {p.name}
+                      <span className="font-mono text-[13px] text-ink-faint font-normal">
+                        {" "}
+                        // {p.short ?? p.description}
+                      </span>
+                    </h3>
+                    <span className="font-mono text-[11px] text-ink-faint shrink-0 hidden sm:block">
+                      {p.stack.join(" · ")}
+                    </span>
+                  </div>
+                  <p className="text-[13.5px] text-ink-soft leading-relaxed max-w-[68ch]">
+                    {p.description}
+                  </p>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
 
-      <SpotifyWidget />
-      <VisitorCount />
+        {/* ---------------- writing ---------------- */}
+        <section className="mt-11">
+          <SectionHead label="writing" href="/blog" cta="see all" />
+          <ul>
+            {posts.map((p) => (
+              <li key={p.slug} className="border-b border-rule">
+                <Link
+                  href={`/blog/${p.slug}`}
+                  className="group block sm:flex sm:items-baseline sm:justify-between sm:gap-4 py-3.5"
+                >
+                  <span className="block text-[14.5px] text-ink group-hover:text-gold transition-colors leading-snug">
+                    {p.title}
+                  </span>
+                  <span className="block font-mono text-[11px] text-ink-faint shrink-0 mt-1 sm:mt-0">
+                    {p.date}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <SpotifyWidget />
+        <VisitorCount />
+
+        {/* closes the page out, right above the footer */}
+        <SceneArt className="mt-16" />
+      </div>
     </motion.main>
   );
 }

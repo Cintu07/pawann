@@ -90,7 +90,7 @@ export default function BackgroundMusic() {
 
       <button
         onClick={togglePlay}
-        className="w-10 h-10 rounded-full bg-white/[0.03] border border-white/[0.07] hover:bg-white/[0.08] backdrop-blur-sm flex items-center justify-center text-neutral-500 hover:text-white transition-all duration-300 shadow-2xl cursor-pointer"
+        className="w-10 h-10 rounded-full bg-surface-2/70 border border-rule hover:bg-surface-2 backdrop-blur-sm flex items-center justify-center text-ink-faint hover:text-gold transition-all duration-300 shadow-2xl cursor-pointer"
         aria-label={isPlaying ? "Pause music" : "Play music"}
       >
         {isPlaying ? (

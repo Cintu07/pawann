@@ -5,13 +5,14 @@ import "./globals.css";
 import BackgroundMusic from "@/components/BackgroundMusic";
 
 export const metadata: Metadata = {
-  title: "Pawan | Founding Engineer",
-  description: "Founding engineer focused on robust backend infrastructure and intuitive interfaces.",
+  metadataBase: new URL("https://pawann.vercel.app"),
+  title: "pawan",
+  description: "self taught. 27 pull requests merged into projects i do not own, apache/arrow-rs and tinygrad among them.",
   openGraph: {
-    title: "Pawan | Founding Engineer",
-    description: "Founding engineer focusing on next-generation voice agents and robust backend infrastructure.",
+    title: "pawan",
+    description: "self taught. 27 pull requests merged into projects i do not own, apache/arrow-rs and tinygrad among them.",
     url: "https://pawann.vercel.app",
-    siteName: "Pawan Portfolio",
+    siteName: "pawan",
     images: [
       {
         url: "/og-image.png",
@@ -25,13 +26,12 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Pawan | Founding Engineer",
-    description: "Founding engineer focusing on next-generation voice agents and robust backend infrastructure.",
+    title: "pawan",
+    description: "self taught. 27 pull requests merged into projects i do not own, apache/arrow-rs and tinygrad among them.",
     images: ["/og-image.png"],
   },
-  icons: {
-    icon: '/icon.svg',
-  },
+  // src/app/icon.png is my github avatar. next's file convention emits the
+  // link tag from that, so nothing is declared here on purpose.
 };
 
 const cabinetGrotesk = localFont({
@@ -54,7 +54,7 @@ export default function RootLayout({
           }
         `}</style>
       </head>
-      <body className="bg-[#18181b] text-neutral-200 antialiased selection:bg-white/10 selection:text-white overflow-x-hidden">
+      <body className="bg-bg text-ink antialiased selection:bg-gold-bright/30 selection:text-ink overflow-x-hidden">
         {process.env.NEXT_PUBLIC_GA_ID && (
           <>
             <Script

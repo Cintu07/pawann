@@ -1,5 +1,6 @@
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
+import { ArtTunerProvider } from "@/components/ArtTuner";
 
 export default function PortfolioLayout({
   children,
@@ -7,12 +8,14 @@ export default function PortfolioLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <div className="w-full max-w-[700px] mx-auto px-4 sm:px-6 py-10 sm:py-20 flex flex-col min-h-[90vh] relative z-10">
+    <ArtTunerProvider>
+    <div className="w-full max-w-[700px] mx-auto px-4 sm:px-6 py-4 sm:py-14 flex flex-col min-h-[90vh] relative z-10">
       <Navigation />
       <div className="flex-1 w-full flex flex-col justify-center">
         {children}
       </div>
       <Footer />
     </div>
+    </ArtTunerProvider>
   );
 }
