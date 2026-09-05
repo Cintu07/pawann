@@ -21,16 +21,16 @@ export const RESUMES: ResumeOption[] = [
   {
     label: "systems, rust",
     blurb: "arrow-rs, helix-db, hydradb, Rux, nvidia dynamo",
-    file: "/resumes/pawan-systems-rust.pdf",
+    file: "/resumes/resume-systems.pdf",
   },
   {
     label: "ai + inference infra",
-    blurb: "production voice agents, LMCache, tinygrad, ciot, strata",
-    file: "/resumes/pawan-ai-inference.pdf",
+    blurb: "production voice agents, LMCache, tinygrad, helix, ciot, strata",
+    file: "/resumes/resume-ai-engineer.pdf",
   },
   {
     label: "backend + product",
     blurb: "dhanamcollections.com end to end, 12.4M invocations traced, 72% off hosting",
-    file: "/resumes/pawan-backend-product.pdf",
+    file: "/resumes/resume-product-engineer.pdf",
   },
 ];

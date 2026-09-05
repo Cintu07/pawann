@@ -64,24 +64,60 @@ export default function Navigation() {
         focusable="false"
         style={{ position: "absolute", width: 0, height: 0, pointerEvents: "none" }}
       >
-        <filter id="lg" x="0%" y="0%" width="100%" height="100%">
+        <filter id="lg" x="-15%" y="-15%" width="130%" height="130%" colorInterpolationFilters="sRGB">
           {/* low frequency, one octave. big smooth blobs read as liquid.
               high frequency noise reads as frosted plastic. */}
           <feTurbulence
             type="fractalNoise"
-            baseFrequency="0.0035 0.006"
+            baseFrequency="0.0028 0.0055"
             numOctaves={1}
             seed={92}
             result="noise"
           />
-          <feGaussianBlur in="noise" stdDeviation="3.5" result="soft" />
+          <feGaussianBlur in="noise" stdDeviation="4.5" result="soft" />
+
+          {/* dispersion. real glass bends red, green and blue by different
+              amounts, which is why a thick edge fringes with colour. one
+              displacement pass cannot do that, so the backdrop goes through
+              three at different scales and each keeps only its own channel.
+              this is the thing that separates glass from a blur. */}
           <feDisplacementMap
-            in="SourceGraphic"
-            in2="soft"
-            scale="160"
-            xChannelSelector="R"
-            yChannelSelector="G"
+            in="SourceGraphic" in2="soft" scale="230"
+            xChannelSelector="R" yChannelSelector="G" result="dispR"
           />
+          <feColorMatrix
+            in="dispR" type="matrix" result="chanR"
+            values="1 0 0 0 0
+                    0 0 0 0 0
+                    0 0 0 0 0
+                    0 0 0 1 0"
+          />
+          <feDisplacementMap
+            in="SourceGraphic" in2="soft" scale="185"
+            xChannelSelector="R" yChannelSelector="G" result="dispG"
+          />
+          <feColorMatrix
+            in="dispG" type="matrix" result="chanG"
+            values="0 0 0 0 0
+                    0 1 0 0 0
+                    0 0 0 0 0
+                    0 0 0 1 0"
+          />
+          <feDisplacementMap
+            in="SourceGraphic" in2="soft" scale="140"
+            xChannelSelector="R" yChannelSelector="G" result="dispB"
+          />
+          <feColorMatrix
+            in="dispB" type="matrix" result="chanB"
+            values="0 0 0 0 0
+                    0 0 0 0 0
+                    0 0 1 0 0
+                    0 0 0 1 0"
+          />
+
+          {/* screen puts the three channels back together as one image */}
+          <feBlend in="chanR" in2="chanG" mode="screen" result="rg" />
+          <feBlend in="rg" in2="chanB" mode="screen" />
         </filter>
       </svg>
 
