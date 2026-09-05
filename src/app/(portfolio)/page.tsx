@@ -103,22 +103,39 @@ export default function Home() {
           </div>
         </header>
 
-        <div className="space-y-3 text-ink-soft leading-relaxed text-[15.5px] sm:text-[16px] max-w-[62ch]">
-          <p>self taught, just out of uni. rust and c++, databases and inference.</p>
+        <div className="space-y-3.5 text-ink-soft leading-relaxed text-[15.5px] sm:text-[16px] max-w-[62ch]">
           <p>
-            27 prs merged into repos i don&apos;t own.{" "}
-            <span className="font-mono text-[14px] text-gold">arrow-rs</span>,{" "}
-            <span className="font-mono text-[14px] text-gold">tinygrad</span>,{" "}
-            <span className="font-mono text-[14px] text-gold">helix-db</span>,{" "}
-            <span className="font-mono text-[14px] text-gold">slatedb</span>, nvidia&apos;s{" "}
-            <span className="font-mono text-[14px] text-gold">dynamo</span>. i find the
-            guard that exists on one code path and is missing on its twin.
+            founding engineer at{" "}
+            <a
+              href="https://cor-tex.solutions/"
+              target="_blank"
+              rel="noreferrer"
+              className="text-gold underline decoration-gold/30 underline-offset-4 hover:decoration-gold"
+            >
+              cortex
+            </a>
+            , voice agents that pick up the phone for restaurants and clinics. before
+            that co-founder at onepurplepen building{" "}
+            <span className="text-ink font-medium">onedb.net</span>. cto at{" "}
+            <a
+              href="https://dhanamcollections.com"
+              target="_blank"
+              rel="noreferrer"
+              className="text-gold underline decoration-gold/30 underline-offset-4 hover:decoration-gold"
+            >
+              dhanamcollections.com
+            </a>
+            , which i built on my own and still run.
           </p>
           <p>
-            built <span className="text-ink font-medium">ciot</span>,{" "}
-            <span className="text-ink font-medium">strata</span> and{" "}
-            <span className="text-ink font-medium">aegis</span>. my laptop is aarch64, so i
-            catch what x86-only ci can&apos;t ^^
+            right now i am mostly in gpu kernels and inference internals. rust and c++,
+            and whatever is underneath them. my laptop is aarch64, which turns out to be
+            the reason i see half the things i see.
+          </p>
+          <p>
+            what i want to work on next is the memory and context side of ai, the infra
+            side of ml, and anything low level enough that i have to care what the machine
+            is actually doing.
           </p>
         </div>
         </div>
