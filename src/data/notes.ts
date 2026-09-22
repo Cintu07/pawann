@@ -7,6 +7,8 @@ export const notes: Record<string, string> = {
     "concat narrowed the combined value length with an unchecked `as i32`, so a caller-controlled element width wrapped negative. the fallible pattern it needed was already in use directly above it in the same function.",
   "apache/arrow-rs#10983":
     "substring wraps start and length to i32 on Utf8 but not on LargeUtf8. same call, same data, different answer depending on which offset width the array happens to use.",
+  "apache/arrow-rs#10995":
+    "the fix for the one above. substring cast start and length straight into the offset type, so on the 32 bit arms a start past 2^31 wrapped negative and got read as counting from the end of the value. the call did not fail, it quietly did something else. the length cast turned out to be wrong on all four arms, not just the 32 bit ones, because u64::MAX as i64 is -1.",
   "HelixDB/helix-db#1075":
     "the neon and scalar distance kernels disagree on 38% of random vector pairs at 22 dimensions and 93% at 1536, worst case 30 ulp. the existing equivalence test fed them integers, where every intermediate is exactly representable, so it agreed bit for bit and could not fail. i confirmed the replacement can fail by tightening its tolerance until it did.",
   "HelixDB/helix-db#1050":
@@ -17,6 +19,8 @@ export const notes: Record<string, string> = {
     "two different tag sets serialise to the same cache key. that key is both the on-disk filename and the remote object key, so one entry silently reads back as another.",
   "tinygrad/tinygrad#15925":
     "TRUNC had no backward pass, so any gradient flowing through it was dropped silently rather than erroring. four lines.",
+  "tinygrad/tinygrad#18288":
+    "the qcom backend bound kernel buffers by compact signature slot instead of by the call's globals, so a kernel that only used buffers 0 and 2 got buffer 1 where 2 should have been. t[1] += 2 then t[1] -= 1 came out as [[0, 1], [4, 5]]. found it on a mock qcom device.",
   "tinygrad/tinygrad#15811":
     "the cuda toolchain version was missing from the compile cache key, so a toolchain upgrade served stale kernels.",
   "tinygrad/tinygrad#15806":

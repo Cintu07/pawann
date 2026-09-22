@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useArt } from "./ArtTuner";
 
 const links = [
   { label: "github", href: "https://github.com/Cintu07" },
@@ -11,7 +10,6 @@ const links = [
 ];
 
 export default function Footer() {
-  const { pos: sky } = useArt("skyline");
   const [copied, setCopied] = useState(false);
   const [time, setTime] = useState("");
 
@@ -67,27 +65,39 @@ export default function Footer() {
         )}
       </div>
 
-      {/* the skyline, back where it was. it bleeds to the window edges on every
-          size now, phones included. overflow-hidden matters: the image is
-          taller than this box at full width and without clipping it climbs up
-          over the links. */}
-      <div
-        aria-hidden="true"
-        className="relative left-1/2 -translate-x-1/2 w-screen
-                   mt-12 -mb-10 sm:-mb-20 select-none pointer-events-none
-                   overflow-hidden"
-        style={{ height: sky.h }}
-      >
-        {/* object-cover at a fixed band height, anchored just above centre.
-            sized by width alone it was 750px tall at desktop, so the band only
-            ever showed the bottom strip of trees and none of the skyline. */}
+      {/* the skyline. it lives inside the content column at its own 1600x625
+          proportions, so it scales with the text when the page is zoomed and
+          the whole drawing shows at every width.
+
+          it used to be a full-bleed w-screen band cropped to a fixed 150px with
+          object-cover. two things went wrong with that. at laptop widths the
+          image wants ~560px of height, so the band showed about a quarter of it.
+          and w-screen tracks the window, not the column, so zooming out shrank
+          the text but left the skyline spanning the whole window.
+
+          the negative bottom margin cancels the layout's bottom padding
+          (py-4 / sm:py-14) exactly, so it sits flush on the page edge without
+          running past it. width and height are set so the lazy load reserves
+          the right space and nothing jumps when it arrives.
+
+          the sky is white, so multiply already dissolves the top edge into the
+          page. the trees run to the left and right edges though, and without
+          the side fade they get sliced off in a hard vertical line at the
+          column edge. 6% each side clears both pagodas. */}
+      <div aria-hidden="true" className="mt-12 -mb-4 sm:-mb-14 select-none pointer-events-none">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/art/footer-skyline.webp"
           alt=""
+          width={1600}
+          height={625}
           loading="lazy"
           decoding="async"
-          className="absolute inset-0 w-full h-full object-cover object-[center_38%] mix-blend-multiply"
+          className="block w-full h-auto mix-blend-multiply"
+          style={{
+            maskImage: "linear-gradient(to right, transparent, #000 6%, #000 94%, transparent)",
+            WebkitMaskImage: "linear-gradient(to right, transparent, #000 6%, #000 94%, transparent)",
+          }}
         />
       </div>
     </footer>

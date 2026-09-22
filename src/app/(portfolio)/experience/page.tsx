@@ -49,11 +49,11 @@ const experience: Job[] = [
     href: "https://dhanamcollections.com",
     role: "cto",
     period: "jul 2026 - now",
-    lede: "a handloom shop that only ever sold offline. i built its entire online side in seven days and i am still the only engineer on it.",
+    lede: "a handloom retailer doing roughly $120k a year that had only ever sold offline. i built its entire online side in 8 days and i am still the only engineer on it.",
     points: [
       "hosting was climbing on 12.4 million serverless invocations a month, for a shop with 45 products. it was link prefetch: every product tile entering the viewport was server rendering a page nobody opened. dropped prefetch on the dynamic routes and the bill fell 72%, $87 a month to $25.",
       "the image pipeline hit 132% of its quota, so i pre-generated six widths per photo to object storage and moved encoding into the browser, which also got the native image binary out of the serverless bundle.",
-      "6 lakh through razorpay across 300+ orders, inside 20 days of launch. roughly 50,000 visitors and 500,000 page views in that window, function errors under 0.1% and nothing down through the order spikes.",
+      "7.02 lakh through razorpay across 284 paid orders at a 2,473 rupee average, on 62,442 page views with 0.45% of them ending in a purchase. function errors under 0.1% and nothing down through the order spikes.",
       "the bank behind our payment gateway held us in a verification loop. they wanted real orders with invoices, and the invoices had to carry gst applied correctly per product rather than one rate on the cart. i built the per product logic, reissued them, and it cleared. before that we could not take money at all.",
       "built the owner a crm so the shop runs without me: products, analytics, draft then publish job posts, the order queue, pack slips, failed orders and per order refunds.",
     ],
