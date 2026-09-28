@@ -16,6 +16,16 @@ export type Project = {
 
 export const projects: Project[] = [
   {
+    name: "heresy",
+    description:
+      "reads a go codebase, works out the rules the code already follows, and flags the few places that break them. nothing to configure. across 16 big go repos and 15,290 files it flagged one site, a real lock leak in minio.",
+    short: "finds the code that disagrees with the rest of your go codebase.",
+    url: "https://github.com/Cintu07/heresy",
+    stars: 0,
+    stack: ["go", "static analysis"],
+    featured: true,
+  },
+  {
     name: "ciot",
     description:
       "cpu inference for ternary neural nets. weights are -1, 0 or 1, so the matmul is adds and subtracts and no multiplies at all. c++ and simd intrinsics, no dependencies.",
