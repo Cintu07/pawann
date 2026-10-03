@@ -293,3 +293,19 @@ test("fenced blocks know which line they start on", () => {
   const md = "intro\n\n```go\nx\ny\n```\n\ntext\n\n~~~rust\nz\n~~~\n";
   assert.deepEqual(fencedBlocks(md).map((b) => [b.lang, b.line]), [["go", 3], ["rust", 10]]);
 });
+
+import { readText, upsertBook } from "../src/lib/studio/publish.ts";
+
+test("a book with the same pdf replaces the old entry, a new one goes first", () => {
+  const list = [{ title: "a", pdf: "/assets/books/a.pdf", pages: 9, cover: "/x.jpg" }];
+  assert.deepEqual(upsertBook(list, { title: "a2", pdf: "/assets/books/a.pdf" }), [{ title: "a2", pdf: "/assets/books/a.pdf" }]);
+  assert.deepEqual(upsertBook(list, { title: "b", pdf: "/assets/books/b.pdf" }).map((b) => b.title), ["b", "a"]);
+});
+
+test("readText decodes the file and treats 404 as missing", async () => {
+  const body = Buffer.from('[{"title":"héllo"}]', "utf8").toString("base64");
+  const ok = async () => new Response(JSON.stringify({ content: body.slice(0, 10) + "\n" + body.slice(10) }), { status: 200 });
+  assert.equal(await readText({ token: "t" }, "content/books.json", ok), '[{"title":"héllo"}]');
+  const missing = async () => new Response('{"message":"Not Found"}', { status: 404 });
+  assert.equal(await readText({ token: "t" }, "content/books.json", missing), null);
+});

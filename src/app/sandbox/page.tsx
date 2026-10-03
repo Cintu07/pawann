@@ -1,9 +1,10 @@
 import { Metadata } from 'next';
 import ConverterClient from './ConverterClient';
+import PinGate from './PinGate';
 
 export const metadata: Metadata = {
-  title: 'Writing studio',
-  description: 'Private in-browser writing studio for the blog.',
+  title: 'sandbox',
+  description: 'Private writing sandbox for the blog.',
   robots: {
     index: false,
     follow: false,
@@ -19,6 +20,10 @@ export const metadata: Metadata = {
   },
 };
 
-export default function BlogConverterPage() {
-  return <ConverterClient />;
+export default function SandboxPage() {
+  return (
+    <PinGate>
+      <ConverterClient />
+    </PinGate>
+  );
 }

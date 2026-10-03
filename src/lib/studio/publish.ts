@@ -94,6 +94,39 @@ export async function fileExists(t: Target, path: string, f: Fetch = fetch): Pro
   }
 }
 
+/** a text file from the blog repo, or null when it does not exist */
+export async function readText(t: Target, path: string, f: Fetch = fetch): Promise<string | null> {
+  const { call, branch } = client(t, f);
+  try {
+    const file = await call<{ content: string }>(`/contents/${path}?ref=${branch}`);
+    const binary = atob(file.content.replace(/\n/g, ""));
+    return new TextDecoder().decode(Uint8Array.from(binary, (ch) => ch.charCodeAt(0)));
+  } catch (err) {
+    if (err instanceof GitHubError && err.status === 404) return null;
+    throw err;
+  }
+}
+
+export interface BookEntry {
+  title: string;
+  subtitle?: string;
+  blurb?: string;
+  year?: string;
+  pages?: number;
+  cover?: string;
+  pdf: string;
+}
+
+/** adds a book to the list, or replaces the one with the same pdf */
+export function upsertBook(list: BookEntry[], book: BookEntry): BookEntry[] {
+  const i = list.findIndex((b) => b.pdf === book.pdf);
+  if (i < 0) return [book, ...list];
+  // a new pdf means a new cover and page count, so nothing old is kept
+  const next = [...list];
+  next[i] = book;
+  return next;
+}
+
 export interface Committed {
   sha: string;
   url: string;

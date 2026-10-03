@@ -7,7 +7,7 @@ import "./studio.css";
 import Preview from "./Preview";
 import { detectLanguage, fence, parseFrontmatter, setFenceLang, toMarkdown, type Lang } from "@/lib/studio/convert";
 import { buildPostFile, describe, extractSvgs, IMAGE_DIR, readingMinutes, referencedImages, slugify, stripLeadingTitle, suggestTags, today } from "@/lib/studio/post";
-import { commitFiles, explain, fileExists, SITE, waitForDeploy, whoami, type PublishFile } from "@/lib/studio/publish";
+import { commitFiles, explain, fileExists, readText, SITE, upsertBook, waitForDeploy, whoami, type BookEntry, type PublishFile } from "@/lib/studio/publish";
 import { clearImages, loadImages, removeImage, saveImage } from "@/lib/studio/store";
 
 const DRAFT_KEY = "pawan_studio_draft_v2";
@@ -80,6 +80,9 @@ export default function ConverterClient() {
   const [liveUrl, setLiveUrl] = useState("");
   const [copied, setCopied] = useState(false);
   const [posts, setPosts] = useState<string[] | null>(null);
+  const [kind, setKind] = useState<"post" | "book">("post");
+  const [book, setBook] = useState({ title: "", subtitle: "", blurb: "", year: String(new Date().getFullYear()) });
+  const [pdf, setPdf] = useState<File | null>(null);
 
   const ta = useRef<HTMLTextAreaElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -436,6 +439,52 @@ export default function ConverterClient() {
     }
   };
 
+  const publishBook = async () => {
+    const say = (line: string) => setLog((l) => [...l, line]);
+    setLog([]);
+    setLiveUrl("");
+    if (!pdf) return say("pick the pdf first");
+    if (!book.title.trim()) return say("the book needs a title");
+    if (!token.trim()) return say("paste a github token first");
+
+    setBusy(true);
+    try {
+      const target = { token: token.trim() };
+      say(`signed in as ${await whoami(target)}`);
+      localStorage.setItem(TOKEN_KEY, token.trim());
+
+      const name = `${slugify(book.title)}.pdf`;
+      const entry: BookEntry = {
+        title: book.title.trim(),
+        ...(book.subtitle.trim() ? { subtitle: book.subtitle.trim() } : {}),
+        ...(book.blurb.trim() ? { blurb: book.blurb.trim() } : {}),
+        ...(book.year.trim() ? { year: book.year.trim() } : {}),
+        pdf: `/assets/books/${name}`,
+      };
+      const current = await readText(target, "content/books.json");
+      const list = current ? (JSON.parse(current) as BookEntry[]) : [];
+      const replacing = list.some((b) => b.pdf === entry.pdf);
+      if (replacing && !confirm(`${book.title} is already up. replace it?`)) {
+        say("cancelled");
+        return;
+      }
+      const files: PublishFile[] = [
+        { path: `assets/books/${name}`, content: new Uint8Array(await pdf.arrayBuffer()) },
+        { path: "content/books.json", content: `${JSON.stringify(upsertBook(list, entry), null, 2)}\n` },
+      ];
+      say(`uploading ${name}, ${(pdf.size / 1_000_000).toFixed(1)} mb`);
+      const done = await commitFiles(target, `${replacing ? "update book" : "book"}: ${entry.title}`, files);
+      say(`committed ${done.sha.slice(0, 7)}`);
+      const result = await waitForDeploy(target, done.sha, say);
+      setLiveUrl(`${SITE.url}/books/`);
+      say(result === "success" ? "live, the cover is made from page one" : result === "failure" ? "the build failed, check the actions tab" : "pushed. it goes live in about a minute");
+    } catch (err) {
+      say(explain(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const clearAll = async () => {
     if (!confirm("clear the draft and its images?")) return;
     setMd("");
@@ -462,7 +511,7 @@ export default function ConverterClient() {
         <div className="flex items-center gap-3 min-w-0">
           <Link href="/" className={tool} title="home"><ChevronLeft className="w-4 h-4" /></Link>
           <div className="min-w-0">
-            <h1 className="text-[17px] font-semibold tracking-tight leading-none">writing studio</h1>
+            <h1 className="text-[17px] font-semibold tracking-tight leading-none">sandbox</h1>
             <p className="font-mono text-[11px] text-ink-faint mt-1">{saved || "ready"} · {words} words</p>
           </div>
         </div>
@@ -569,6 +618,14 @@ export default function ConverterClient() {
               <button onClick={() => setPanel(false)} className={tool}><X className="w-4 h-4" /></button>
             </div>
 
+            <div className="flex border border-rule-strong rounded overflow-hidden font-mono text-[12px]">
+              {(["post", "book"] as const).map((k) => (
+                <button key={k} onClick={() => { setKind(k); setLog([]); setLiveUrl(""); }} className={`flex-1 py-1.5 cursor-pointer ${kind === k ? "bg-ink text-bg" : "text-ink-faint hover:text-gold"}`}>{k === "post" ? "a post" : "a book"}</button>
+              ))}
+            </div>
+
+            {kind === "post" ? (
+              <>
             <div><label className={label}>title</label><input className={field} value={title} onChange={(e) => set({ title: e.target.value })} /></div>
             <div className="grid grid-cols-2 gap-3">
               <div><label className={label}>slug</label><input className={field} value={slug} onChange={(e) => set({ slug: slugify(e.target.value), slugSet: true })} /></div>
@@ -584,6 +641,28 @@ export default function ConverterClient() {
                 {f.cover && !images[f.cover.slice(IMAGE_DIR.length)] && <option value={f.cover}>{f.cover.slice(IMAGE_DIR.length)}</option>}
               </select>
             </div>
+              </>
+            ) : (
+              <>
+            <div>
+              <label className={label}>the pdf</label>
+              <label className={`${field} flex items-center justify-between cursor-pointer`}>
+                <span className="truncate">{pdf ? pdf.name : "choose a pdf"}</span>
+                <span className="font-mono text-[11px] text-ink-faint">{pdf ? `${(pdf.size / 1_000_000).toFixed(1)} mb` : "browse"}</span>
+                <input type="file" accept="application/pdf,.pdf" className="hidden" onChange={(e) => {
+                  const file = e.target.files?.[0] ?? null;
+                  setPdf(file);
+                  if (file && !book.title) setBook((b) => ({ ...b, title: file.name.replace(/\.pdf$/i, "").replace(/[-_]+/g, " ") }));
+                }} />
+              </label>
+              <p className="font-mono text-[11px] text-ink-faint mt-1.5">the cover and page count come from the pdf itself.</p>
+            </div>
+            <div><label className={label}>title</label><input className={field} value={book.title} onChange={(e) => setBook({ ...book, title: e.target.value })} /></div>
+            <div><label className={label}>subtitle</label><input className={field} value={book.subtitle} onChange={(e) => setBook({ ...book, subtitle: e.target.value })} /></div>
+            <div><label className={label}>what it is about</label><textarea className={`${field} resize-none`} rows={4} value={book.blurb} onChange={(e) => setBook({ ...book, blurb: e.target.value })} /></div>
+            <div><label className={label}>year</label><input className={field} value={book.year} onChange={(e) => setBook({ ...book, year: e.target.value })} /></div>
+              </>
+            )}
 
             <div>
               <label className={label}>github token</label>
@@ -595,8 +674,8 @@ export default function ConverterClient() {
               </p>
             </div>
 
-            <button disabled={busy} onClick={publish} className="w-full py-2.5 rounded bg-ink text-bg font-mono text-[13px] hover:bg-gold transition-colors disabled:opacity-50 cursor-pointer">
-              {busy ? "publishing..." : "publish"}
+            <button disabled={busy} onClick={kind === "post" ? publish : publishBook} className="w-full py-2.5 rounded bg-ink text-bg font-mono text-[13px] hover:bg-gold transition-colors disabled:opacity-50 cursor-pointer">
+              {busy ? "publishing..." : kind === "post" ? "publish the post" : "publish the book"}
             </button>
 
             {log.length > 0 && (
