@@ -9,8 +9,10 @@ import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { BlogPost } from "../data";
+import { CAPTION_MARK } from "@/lib/blog-caption";
 
 export default function BlogPostClient({ post }: { post: BlogPost }) {
+  const minutes = post.minutes ?? Math.max(1, Math.ceil(post.content.trim().split(/\s+/).length / 225));
   const customEasing: Easing = [0.25, 0.1, 0.25, 1];
   const fade: Variants = {
     hidden: { opacity: 0, y: 12 },
@@ -61,7 +63,7 @@ export default function BlogPostClient({ post }: { post: BlogPost }) {
         <span className="text-[11px] font-mono uppercase tracking-[0.25em] text-ink-faint">{post.date}</span>
         <span className="w-1 h-1 rounded-full bg-neutral-700" />
         <span className="flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-[0.25em] text-ink-faint">
-          <Clock className="w-3.1 h-3.1" /> 12 MIN READ
+          <Clock className="w-3.1 h-3.1" /> {minutes} MIN READ
         </span>
       </div>
 
@@ -77,6 +79,11 @@ export default function BlogPostClient({ post }: { post: BlogPost }) {
               if (hasImg) {
                 return <>{children}</>;
               }
+              const first = React.Children.toArray(children)[0];
+              if (typeof first === "string" && first.startsWith(CAPTION_MARK)) {
+                const rest = React.Children.toArray(children).slice(1);
+                return <p className="font-mono text-[11.5px] text-ink-faint mt-8 -mb-6">{first.slice(CAPTION_MARK.length)}{rest}</p>;
+              }
               return <p className="text-ink-soft leading-relaxed text-[16px] mb-6" {...props}>{children}</p>;
             },
             li: ({node, ...props}) => <li className="text-ink-soft leading-relaxed text-[16px] mb-2 list-none flex gap-3"><span className="text-ink-faint mt-1">•</span><span {...props} /></li>,
@@ -87,7 +94,7 @@ export default function BlogPostClient({ post }: { post: BlogPost }) {
               if (!isBlock) {
                 return (
                   <code 
-                    className="inline font-mono align-middle mx-0.5 break-words text-[13px] md:text-[14px] text-purple-400 md:text-purple-300 bg-transparent md:bg-purple-950/20 border-0 md:border md:border-purple-500/15 px-0 md:px-1.5 py-0 md:py-0.5 rounded-none md:rounded" 
+                    className="inline font-mono mx-0.5 break-words text-[13px] md:text-[14px] text-gold bg-surface-2/70 border border-rule px-1.5 py-0.5 rounded"
                     {...props}
                   >
                     {children}

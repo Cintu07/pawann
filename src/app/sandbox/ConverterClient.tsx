@@ -77,7 +77,7 @@ export default function ConverterClient() {
   const [token, setToken] = useState("");
   const [log, setLog] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
-  const [liveUrl, setLiveUrl] = useState("");
+  const [liveUrls, setLiveUrls] = useState<string[]>([]);
   const [copied, setCopied] = useState(false);
   const [posts, setPosts] = useState<string[] | null>(null);
   const [kind, setKind] = useState<"post" | "book">("post");
@@ -392,7 +392,7 @@ export default function ConverterClient() {
   const publish = async () => {
     const say = (line: string) => setLog((l) => [...l, line]);
     setLog([]);
-    setLiveUrl("");
+    setLiveUrls([]);
     if (!title.trim()) return say("the post needs a title");
     if (!slug) return say("the post needs a slug");
     if (!body.trim()) return say("the post is empty");
@@ -429,9 +429,13 @@ export default function ConverterClient() {
       say(`committed ${done.sha.slice(0, 7)}`);
 
       const result = await waitForDeploy(target, done.sha, say);
-      const url = `${SITE.url}/posts/${slug}/`;
-      setLiveUrl(url);
-      say(result === "success" ? "live" : result === "failure" ? "the build failed, check the actions tab" : "pushed. it goes live in about a minute");
+      setLiveUrls([`${SITE.url}/posts/${slug}/`]);
+      say(result === "success" ? "live on the blog" : result === "failure" ? "the build failed, check the actions tab" : "pushed. it goes live in about a minute");
+      if (result === "success") {
+        // pawann.dev lists posts from the blog's posts.json, so drop its cache now
+        const ok = await fetch("/api/revalidate-blog", { method: "POST" }).then((r) => r.ok, () => false);
+        say(ok ? `listed on ${location.host} too` : `${location.host} lists it within five minutes`);
+      }
     } catch (err) {
       say(explain(err));
     } finally {
@@ -442,7 +446,7 @@ export default function ConverterClient() {
   const publishBook = async () => {
     const say = (line: string) => setLog((l) => [...l, line]);
     setLog([]);
-    setLiveUrl("");
+    setLiveUrls([]);
     if (!pdf) return say("pick the pdf first");
     if (!book.title.trim()) return say("the book needs a title");
     if (!token.trim()) return say("paste a github token first");
@@ -476,7 +480,7 @@ export default function ConverterClient() {
       const done = await commitFiles(target, `${replacing ? "update book" : "book"}: ${entry.title}`, files);
       say(`committed ${done.sha.slice(0, 7)}`);
       const result = await waitForDeploy(target, done.sha, say);
-      setLiveUrl(`${SITE.url}/books/`);
+      setLiveUrls([`${SITE.url}/books/`]);
       say(result === "success" ? "live, the cover is made from page one" : result === "failure" ? "the build failed, check the actions tab" : "pushed. it goes live in about a minute");
     } catch (err) {
       say(explain(err));
@@ -620,7 +624,7 @@ export default function ConverterClient() {
 
             <div className="flex border border-rule-strong rounded overflow-hidden font-mono text-[12px]">
               {(["post", "book"] as const).map((k) => (
-                <button key={k} onClick={() => { setKind(k); setLog([]); setLiveUrl(""); }} className={`flex-1 py-1.5 cursor-pointer ${kind === k ? "bg-ink text-bg" : "text-ink-faint hover:text-gold"}`}>{k === "post" ? "a post" : "a book"}</button>
+                <button key={k} onClick={() => { setKind(k); setLog([]); setLiveUrls([]); }} className={`flex-1 py-1.5 cursor-pointer ${kind === k ? "bg-ink text-bg" : "text-ink-faint hover:text-gold"}`}>{k === "post" ? "a post" : "a book"}</button>
               ))}
             </div>
 
@@ -683,7 +687,7 @@ export default function ConverterClient() {
                 {log.map((l, i) => <li key={i}>{l}</li>)}
               </ul>
             )}
-            {liveUrl && <a className="block font-mono text-[12.5px] text-gold underline break-all" href={liveUrl} target="_blank" rel="noreferrer">{liveUrl}</a>}
+            {liveUrls.map((u) => <a key={u} className="block font-mono text-[12.5px] text-gold underline break-all" href={u} target="_blank" rel="noreferrer">{u}</a>)}
           </aside>
         </div>
       )}

@@ -1,0 +1,208 @@
+"use client";
+
+import Link from "next/link";
+import { motion, type Variants, type Easing } from "framer-motion";
+import { SiSpotify } from "react-icons/si";
+import useSWR from "swr";
+import ScrambleText from "@/components/ScrambleText";
+import SceneArt from "@/components/SceneArt";
+import { Draggable, useArt } from "@/components/ArtTuner";
+import type { BlogPost } from "./blog/data";
+import { featured } from "@/data/projects";
+
+// posts are read from the blog and link there; /blog redirects too, see next.config.ts
+const BLOG = "https://cintu07.github.io/";
+
+const fetcher = (url: string) => fetch(url).then((res) => res.json());
+
+function SectionHead({ label, href, cta }: { label: string; href: string; cta: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 pb-2 border-b border-rule">
+      <h2 className="font-mono text-[12.5px] text-ink-faint tracking-wide">{label}</h2>
+      <Link
+        href={href}
+        className="font-mono text-[12px] text-ink-faint hover:text-gold transition-colors shrink-0"
+      >
+        {cta} →
+      </Link>
+    </div>
+  );
+}
+
+function SpotifyWidget() {
+  const { data } = useSWR("/api/now-playing", fetcher, { refreshInterval: 10000 });
+  if (!data) return null;
+
+  return (
+    <a
+      href={data.songUrl || "#"}
+      target="_blank"
+      rel="noreferrer"
+      className="group inline-flex items-center gap-2 mt-10 font-mono text-[12px] text-ink-faint hover:text-gold transition-colors max-w-full"
+    >
+      <SiSpotify className="w-3.5 h-3.5 shrink-0" />
+      <span className="truncate">
+        {data.isPlaying ? "now playing" : "last played"} · {data.title || "nothing"}
+      </span>
+    </a>
+  );
+}
+
+function VisitorCount() {
+  const { data } = useSWR("/api/visit", fetcher, { revalidateOnFocus: true });
+  const visits = data?.visits;
+  if (typeof visits !== "number" || visits < 1) return null;
+  return (
+    <p className="mt-2 font-mono text-[12px] text-ink-faint">
+      visitor {visits.toLocaleString()}
+    </p>
+  );
+}
+
+export default function Home({ posts }: { posts: BlogPost[] }) {
+  const { pos: pagoda } = useArt("pagoda");
+  const easing: Easing = [0.25, 0.1, 0.25, 1];
+  const fade: Variants = {
+    hidden: { opacity: 0, y: 12 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: easing } },
+  };
+
+  return (
+    <motion.main initial="hidden" animate="visible" variants={fade} className="w-full relative">
+      <div className="relative">
+        {/* ---------------- bio ---------------- */}
+        {/* the pagoda is anchored to this block, not to the page, so it ends
+            exactly where the bio ends. no guessed pixel height: inset-y-0 ties
+            its bottom edge to the projects rule below. */}
+        <div className="relative">
+          <Draggable
+            artKey="pagoda"
+            className="select-none absolute top-0 -bottom-6 right-0 overflow-hidden hidden lg:block"
+            style={{ width: pagoda.w }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/art/pagoda.webp"
+              alt=""
+              aria-hidden="true"
+              className="absolute bottom-0 right-0 w-full h-auto opacity-[0.16] mix-blend-multiply"
+            />
+          </Draggable>
+
+        <header className="flex items-center gap-4 sm:gap-5 mb-7">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="https://avatars.githubusercontent.com/u/178455858?v=4"
+            alt="Pawan"
+            className="w-[68px] h-[68px] sm:w-[78px] sm:h-[78px] rounded-full object-cover ring-1 ring-rule-strong shrink-0"
+          />
+          <div className="min-w-0">
+            <h1 className="text-[30px] sm:text-[38px] font-semibold text-ink tracking-tight leading-none mb-1.5">
+              <ScrambleText text="pawan" scrambleDelay={1200} />
+            </h1>
+            <p className="font-mono text-[12px] sm:text-[12.5px] text-ink-faint tracking-wide">
+              Cintu07 · rust / go / typescript · ml infra, databases &amp; inference
+            </p>
+          </div>
+        </header>
+
+        <div className="space-y-3.5 text-ink-soft leading-relaxed text-[15.5px] sm:text-[16px] max-w-[62ch]">
+          <p>
+            founding engineer at{" "}
+            <a
+              href="https://cor-tex.solutions/"
+              target="_blank"
+              rel="noreferrer"
+              className="text-gold underline decoration-gold/30 underline-offset-4 hover:decoration-gold"
+            >
+              cortex
+            </a>
+            , voice agents that pick up the phone for restaurants and clinics. before
+            that co-founder at onepurplepen building{" "}
+            <span className="text-ink font-medium">onedb.net</span>. cto at{" "}
+            <a
+              href="https://dhanamcollections.com"
+              target="_blank"
+              rel="noreferrer"
+              className="text-gold underline decoration-gold/30 underline-offset-4 hover:decoration-gold"
+            >
+              dhanamcollections.com
+            </a>
+            , which i built on my own and still run.
+          </p>
+          <p>
+            i am good at ml infra, databases and inference, and i write rust, go and
+            typescript.
+          </p>
+          <p>
+            right now i am mostly in gpu kernels and inference internals. rust and c++,
+            and whatever is underneath them. my laptop is aarch64, which turns out to be
+            the reason i see half the things i see.
+          </p>
+          <p>
+            what i want to work on next is the memory and context side of ai, the infra
+            side of ml, and anything low level enough that i have to care what the machine
+            is actually doing.
+          </p>
+        </div>
+        </div>
+
+        {/* ---------------- projects ---------------- */}
+        <section className="mt-10">
+          <SectionHead label="projects" href="/projects" cta="see all" />
+          <ul>
+            {featured.map((p) => (
+              <li key={p.name} className="border-b border-rule">
+                <a href={p.url} target="_blank" rel="noreferrer" className="group block py-3.5">
+                  <div className="sm:flex sm:items-baseline sm:justify-between sm:gap-4 mb-1">
+                    <h3 className="text-[15px] text-ink font-medium group-hover:text-gold transition-colors">
+                      {p.name}
+                      <span className="font-mono text-[13px] text-ink-faint font-normal">
+                        {" "}
+                        // {p.short ?? p.description}
+                      </span>
+                    </h3>
+                    <span className="font-mono text-[11px] text-ink-faint shrink-0 hidden sm:block">
+                      {p.stack.join(" · ")}
+                    </span>
+                  </div>
+                  <p className="text-[13.5px] text-ink-soft leading-relaxed max-w-[68ch]">
+                    {p.description}
+                  </p>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        {/* ---------------- writing ---------------- */}
+        <section className="mt-11">
+          <SectionHead label="writing" href={BLOG} cta="see all" />
+          <ul>
+            {posts.map((p) => (
+              <li key={p.slug} className="border-b border-rule">
+                <Link
+                  href={`${BLOG}posts/${p.slug}/`}
+                  className="group block sm:flex sm:items-baseline sm:justify-between sm:gap-4 py-3.5"
+                >
+                  <span className="block text-[14.5px] text-ink group-hover:text-gold transition-colors leading-snug">
+                    {p.title}
+                  </span>
+                  <span className="block font-mono text-[11px] text-ink-faint shrink-0 mt-1 sm:mt-0">
+                    {p.date}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <SpotifyWidget />
+        <VisitorCount />
+
+        {/* closes the page out, right above the footer */}
+        <SceneArt className="mt-16" />
+      </div>
+    </motion.main>
+  );
+}

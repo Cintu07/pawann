@@ -6,6 +6,8 @@ export interface BlogPost {
   content: string;
   tags: string[];
   imageURL?: string;
+  minutes?: number;
+  og?: string;
 }
 
 export const posts: BlogPost[] = [

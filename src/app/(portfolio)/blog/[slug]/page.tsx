@@ -1,5 +1,5 @@
 import { Metadata } from 'next';
-import { posts } from '../data';
+import { getPost } from '@/lib/blog';
 import BlogPostClient from './BlogPostClient';
 import Link from 'next/link';
 import { ChevronLeft } from 'lucide-react';
@@ -10,9 +10,10 @@ type Props = {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const post = posts.find((p) => p.slug === slug);
+  const post = await getPost(slug);
   
   if (!post) return { title: 'Post Not Found' };
+  const image = post.og || post.imageURL || '/og-image.png';
 
   return {
     title: `${post.title} | Pawan Blog`,
@@ -24,7 +25,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       publishedTime: post.date,
       images: [
         {
-          url: post.imageURL || '/og-image.png',
+          url: image,
           width: 1200,
           height: 630,
           alt: post.title,
@@ -35,14 +36,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       card: 'summary_large_image',
       title: post.title,
       description: post.description,
-      images: [post.imageURL || '/og-image.png'],
+      images: [image],
     },
   };
 }
 
 export default async function BlogPostPage({ params }: Props) {
   const { slug } = await params;
-  const post = posts.find((p) => p.slug === slug);
+  const post = await getPost(slug);
 
   if (!post) {
     return (
