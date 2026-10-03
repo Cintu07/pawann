@@ -2,8 +2,8 @@ import { Metadata } from 'next';
 import ConverterClient from './ConverterClient';
 
 export const metadata: Metadata = {
-  title: 'Blog Parser & Formatter',
-  description: 'Private in-browser markdown blog parser and formatter.',
+  title: 'Writing studio',
+  description: 'Private in-browser writing studio for the blog.',
   robots: {
     index: false,
     follow: false,

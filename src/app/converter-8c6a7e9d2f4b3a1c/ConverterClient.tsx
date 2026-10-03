@@ -1,634 +1,613 @@
 "use client";
 
-import { useState, useRef, useEffect, DragEvent, ChangeEvent } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { ChevronLeft, Upload, Copy, Check, Sparkles, Bold, Italic, Code, Link as LinkIcon, Quote, Image as ImageIcon, Heading1, Heading2, Eye, Layout, Edit2, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ClipboardEvent, type DragEvent } from "react";
 import Link from "next/link";
+import { Bold, ChevronLeft, Code, Download, Heading2, Image as ImageIcon, Italic, Link as LinkIcon, Quote, Sparkles, Trash2, Upload, X, Copy, Check } from "lucide-react";
+import "./studio.css";
+import Preview from "./Preview";
+import { detectLanguage, fence, parseFrontmatter, setFenceLang, toMarkdown, type Lang } from "@/lib/studio/convert";
+import { buildPostFile, describe, extractSvgs, IMAGE_DIR, readingMinutes, referencedImages, slugify, stripLeadingTitle, suggestTags, today } from "@/lib/studio/post";
+import { commitFiles, explain, fileExists, SITE, waitForDeploy, whoami, type PublishFile } from "@/lib/studio/publish";
+import { clearImages, loadImages, removeImage, saveImage } from "@/lib/studio/store";
 
-// Heuristic-based language detector for code blocks
-function detectLanguage(code: string): string {
-  const trimmed = code.trim();
-  
-  if (/package\s+\w+/.test(trimmed) && /import\s*\(|import\s+"/.test(trimmed)) return 'go';
-  if (/func\s+\w+\(/.test(trimmed) && (/:=/.test(trimmed) || /struct\s*\{/.test(trimmed))) return 'go';
-  
-  if (/fn\s+\w+\(/.test(trimmed) && (/(let\s+mut|match\s+|impl\s+|pub\s+struct)/.test(trimmed) || /println!/.test(trimmed))) return 'rust';
-  if (/use\s+std::/.test(trimmed) || /cargo\s+/.test(trimmed)) return 'rust';
+const DRAFT_KEY = "pawan_studio_draft_v2";
+const OLD_DRAFT_KEY = "pawan_blog_draft";
+const TOKEN_KEY = "pawan_studio_gh_token";
 
-  if (/#include\s+<\w+>/.test(trimmed) || /std::cout/.test(trimmed) || /int\s+main\s*\(/.test(trimmed)) return 'cpp';
-
-  if (/def\s+\w+\(/.test(trimmed) && (/:$/m.test(trimmed) || /self\./.test(trimmed) || /import\s+\w+/.test(trimmed))) {
-    if (!/function|const|let|var/.test(trimmed)) return 'python';
-  }
-  if (/elif\s+/.test(trimmed) || /import\s+numpy|import\s+pandas/.test(trimmed)) return 'python';
-
-  if (/<!DOCTYPE\s+html>/i.test(trimmed) || (/<div|<p|<html|<body|<script/i.test(trimmed) && !/import|const|let/.test(trimmed))) return 'html';
-
-  if (/^[.#]?\w+[\s,]*\{[^}]*\}/m.test(trimmed) && (/:[ \w-]+;/i.test(trimmed) || /color:|background:|margin:/i.test(trimmed))) return 'css';
-
-  if (/import\s+.*\s+from\s+['"].*['"]/.test(trimmed) || /const\s+\w+\s*=/.test(trimmed) || /let\s+\w+\s*=/.test(trimmed) || /console\.log\(/.test(trimmed) || /export\s+default\s+/.test(trimmed)) {
-    if (/:\s*(string|number|boolean|any|interface|type)\b/.test(trimmed) || /as\s+\w+/.test(trimmed)) {
-      return 'typescript';
-    }
-    return 'javascript';
-  }
-
-  if (/^(npm|yarn|pnpm|pip|cargo|git|cd|mkdir|rm|ls|echo|curl|wget)\s/m.test(trimmed) || trimmed.startsWith('$ ')) return 'bash';
-
-  return 'text';
+interface Fields {
+  title: string;
+  slug: string;
+  slugSet: boolean;
+  date: string;
+  description: string;
+  descSet: boolean;
+  tags: string;
+  tagsSet: boolean;
+  cover: string;
 }
 
-const SUPPORTED_LANGUAGES = [
-  { value: 'go', label: 'Go' },
-  { value: 'rust', label: 'Rust' },
-  { value: 'typescript', label: 'TypeScript' },
-  { value: 'javascript', label: 'JavaScript' },
-  { value: 'python', label: 'Python' },
-  { value: 'cpp', label: 'C++' },
-  { value: 'html', label: 'HTML' },
-  { value: 'css', label: 'CSS' },
-  { value: 'bash', label: 'Bash/Shell' },
-  { value: 'json', label: 'JSON' },
-  { value: 'yaml', label: 'YAML' },
-  { value: 'sql', label: 'SQL' },
-  { value: 'text', label: 'Plain Text' }
-];
+const BLANK: Fields = { title: "", slug: "", slugSet: false, date: "", description: "", descSet: false, tags: "", tagsSet: false, cover: "" };
 
-// Preprocess markdown to wrap raw SVG blocks in custom inline-svg code blocks
-function preprocessMarkdown(text: string): string {
-  if (!text) return "";
-  
-  // Split by code blocks to avoid wrapping SVGs that are already inside code blocks
-  const parts = text.split(/(```[\s\S]*?```)/g);
-  const processedParts = parts.map((part) => {
-    if (part.startsWith("```")) {
-      return part;
-    } else {
-      // Find raw <svg ...> ... </svg> tags
-      return part.replace(/(<svg\b[^>]*>[\s\S]*?<\/svg>)/gi, "\n\n```inline-svg\n$1\n```\n\n");
-    }
-  });
-  
-  return processedParts.join("");
+interface Img {
+  name: string;
+  mime: string;
+  bytes: Uint8Array;
+  url: string;
 }
 
-// Custom code block renderer with editable language select dropdown and copy button
-function CustomCodeBlock({ children, initialLang }: { children: string; initialLang: string }) {
-  const [selectedLang, setSelectedLang] = useState(initialLang);
-  const [copied, setCopied] = useState(false);
+type Layout = "edit" | "split" | "preview";
 
-  const codeString = String(children).replace(/\n$/, '');
+const isImage = (f: File) => f.type.startsWith("image/") || /\.(svg|png|jpe?g|gif|webp|avif)$/i.test(f.name);
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(codeString);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  return (
-    <div className="my-8 rounded-xl overflow-hidden border border-card-border shadow-2xl bg-[#0d0d0d] text-neutral-300">
-      {/* Header bar */}
-      <div className="flex items-center justify-between px-4 py-2 bg-black/40 border-b border-card-border font-mono text-xs">
-        <div className="flex items-center gap-2">
-          <span className="text-neutral-500 text-[11px] uppercase tracking-wider">Language:</span>
-          <select
-            value={selectedLang}
-            onChange={(e) => setSelectedLang(e.target.value)}
-            className="bg-transparent text-neutral-300 hover:text-white border-0 py-0.5 px-1 font-medium font-mono focus:ring-0 focus:outline-none cursor-pointer"
-          >
-            {SUPPORTED_LANGUAGES.map((lang) => (
-              <option key={lang.value} value={lang.value} className="bg-[#111] text-neutral-300">
-                {lang.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <button
-          onClick={handleCopy}
-          className="flex items-center gap-1.5 text-neutral-500 hover:text-white transition-colors cursor-pointer"
-        >
-          {copied ? (
-            <>
-              <Check className="w-3.5 h-3.5 text-green-500" />
-              <span className="text-green-500 text-[11px]">Copied</span>
-            </>
-          ) : (
-            <>
-              <Copy className="w-3.5 h-3.5" />
-              <span className="text-[11px]">Copy</span>
-            </>
-          )}
-        </button>
-      </div>
-      
-      {/* Highlighted Code */}
-      <SyntaxHighlighter
-        language={selectedLang}
-        style={vscDarkPlus}
-        PreTag="div"
-        codeTagProps={{
-          style: {
-            fontSize: '13px',
-            fontFamily: 'var(--font-mono)',
-            lineHeight: '1.6'
-          }
-        }}
-        customStyle={{
-          margin: 0,
-          padding: '1.5rem',
-          background: 'transparent'
-        }}
-      >
-        {codeString}
-      </SyntaxHighlighter>
-    </div>
-  );
+function extensionFor(file: File): string {
+  const fromName = /\.([a-z0-9]+)$/i.exec(file.name)?.[1]?.toLowerCase();
+  if (fromName && /^(png|jpe?g|gif|webp|avif|svg)$/.test(fromName)) return fromName === "jpeg" ? "jpg" : fromName;
+  const fromMime = file.type.split("/")[1]?.replace("+xml", "").replace("jpeg", "jpg");
+  return fromMime || "png";
 }
+
+function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
+function looksStructured(html: string): boolean {
+  return /<(h[1-6]|pre|ul|ol|table|blockquote|img|p)[\s>]/i.test(html);
+}
+
+/** blank lines around a block so it does not glue itself to the text beside it */
+function pad(before: string, after: string, text: string): string {
+  const lead = before === "" || /\n\n$/.test(before) ? "" : before.endsWith("\n") ? "\n" : "\n\n";
+  const tail = after === "" || /^\n\n/.test(after) ? "" : after.startsWith("\n") ? "\n" : "\n\n";
+  return lead + text.replace(/\n+$/, "") + tail;
+}
+
+const isBlock = (md: string) => /^(```|~~~|#{1,6}\s|>\s|\|)/.test(md) || md.includes("\n\n");
 
 export default function ConverterClient() {
-  const [markdown, setMarkdown] = useState("");
-  const [previewMarkdown, setPreviewMarkdown] = useState("");
-  const [layoutMode, setLayoutMode] = useState<"edit" | "preview" | "split">("split");
-  const [isDragOver, setIsDragOver] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveStatus, setSaveStatus] = useState("Draft Saved");
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [md, setMd] = useState("");
+  const [f, setF] = useState<Fields>(BLANK);
+  const [layout, setLayout] = useState<Layout>("split");
+  const [images, setImages] = useState<Record<string, Img>>({});
+  const [report, setReport] = useState<string[]>([]);
+  const [dragging, setDragging] = useState(false);
+  const [saved, setSaved] = useState("");
+  const [panel, setPanel] = useState(false);
+  const [token, setToken] = useState("");
+  const [log, setLog] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [liveUrl, setLiveUrl] = useState("");
+  const [copied, setCopied] = useState(false);
+  const [posts, setPosts] = useState<string[] | null>(null);
 
-  // Load draft on mount and detect viewport size
+  const ta = useRef<HTMLTextAreaElement>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const imageInput = useRef<HTMLInputElement>(null);
+  const imagesRef = useRef<Record<string, Img>>({});
+  const hydrated = useRef(false);
+
+  // ---------------------------------------------------------------- load / save
+
   useEffect(() => {
-    const savedDraft = localStorage.getItem("pawan_blog_draft");
-    if (savedDraft) {
-      setMarkdown(savedDraft);
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (raw) {
+        const d = JSON.parse(raw) as { md: string } & Partial<Fields>;
+        setMd(d.md ?? "");
+        setF({ ...BLANK, ...d, date: d.date || today() });
+      } else {
+        setF({ ...BLANK, date: today() });
+        const old = localStorage.getItem(OLD_DRAFT_KEY);
+        if (old) setMd(old);
+      }
+      setToken(localStorage.getItem(TOKEN_KEY) ?? "");
+    } catch {
+      setF({ ...BLANK, date: today() });
     }
-    if (window.innerWidth < 768) {
-      setLayoutMode("edit");
-    }
+    if (window.innerWidth < 900) setLayout("edit");
+    loadImages().then((stored) => {
+      const next: Record<string, Img> = {};
+      for (const s of stored) {
+        const bytes = new Uint8Array(s.bytes);
+        next[s.name] = { name: s.name, mime: s.mime, bytes, url: URL.createObjectURL(new Blob([bytes], { type: s.mime })) };
+      }
+      imagesRef.current = next;
+      setImages(next);
+    });
+    hydrated.current = true;
   }, []);
 
-  // Debounce preview rendering to eliminate typing lag
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      setPreviewMarkdown(markdown);
-    }, 250);
-
-    return () => clearTimeout(timeout);
-  }, [markdown]);
-
-  // Autosave draft to LocalStorage
-  useEffect(() => {
-    setIsSaving(true);
-    const timeout = setTimeout(() => {
-      localStorage.setItem("pawan_blog_draft", markdown);
-      setIsSaving(false);
-      setSaveStatus("Saved locally");
-    }, 600);
-
-    return () => clearTimeout(timeout);
-  }, [markdown]);
-
-  // Read stats from markdown
-  const wordCount = markdown.trim() === "" ? 0 : markdown.trim().split(/\s+/).filter(Boolean).length;
-  const charCount = markdown.length;
-  const readTime = Math.max(1, Math.ceil(wordCount / 200));
-
-  const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    setIsDragOver(true);
-  };
-
-  const handleDragLeave = () => {
-    setIsDragOver(false);
-  };
-
-  const processFile = (file: File) => {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      if (event.target?.result) {
-        setMarkdown(String(event.target.result));
+    if (!hydrated.current) return;
+    const t = setTimeout(() => {
+      try {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({ md, ...f }));
+        setSaved("saved in this browser");
+      } catch {
+        setSaved("could not save, storage is full");
       }
-    };
-    reader.readAsText(file);
+    }, 500);
+    return () => clearTimeout(t);
+  }, [md, f]);
+
+  // -------------------------------------------------------------- derived
+
+  const h1 = useMemo(() => /^#\s+(.+)$/m.exec(md)?.[1]?.trim() ?? "", [md]);
+  const title = f.title || h1;
+  const slug = f.slugSet ? f.slug : slugify(title);
+  const description = f.descSet ? f.description : describe(stripLeadingTitle(md, title));
+  const tags = f.tagsSet ? f.tags : suggestTags(md).join(", ");
+  const words = md.trim() ? md.trim().split(/\s+/).length : 0;
+  const body = useMemo(() => stripLeadingTitle(md, title), [md, title]);
+  const previewImages = useMemo(() => Object.fromEntries(Object.values(images).map((i) => [IMAGE_DIR + i.name, i.url])), [images]);
+  const byline = `${f.date || today()} · ${readingMinutes(md)} min read`;
+  const set = (patch: Partial<Fields>) => setF((p) => ({ ...p, ...patch }));
+
+  // -------------------------------------------------------------- editing
+
+  const insert = useCallback((text: string) => {
+    const el = ta.current;
+    if (!el) {
+      setMd((m) => m + text);
+      return;
+    }
+    const a = el.selectionStart;
+    const b = el.selectionEnd;
+    setMd(el.value.slice(0, a) + text + el.value.slice(b));
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(a + text.length, a + text.length);
+    });
+  }, []);
+
+  /** a block of its own, with blank lines around it */
+  const insertBlock = useCallback((text: string) => {
+    const el = ta.current;
+    if (!el) {
+      setMd((m) => (m ? m.replace(/\n*$/, "\n\n") : "") + text);
+      return;
+    }
+    insert(pad(el.value.slice(0, el.selectionStart), el.value.slice(el.selectionEnd), text));
+  }, [insert]);
+
+  const wrap = (before: string, after = before) => {
+    const el = ta.current;
+    if (!el) return;
+    const a = el.selectionStart;
+    const b = el.selectionEnd;
+    const chosen = el.value.slice(a, b);
+    setMd(el.value.slice(0, a) + before + chosen + after + el.value.slice(b));
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(a + before.length, a + before.length + chosen.length);
+    });
   };
 
-  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    setIsDragOver(false);
-    
-    // Check if dropping a markdown file or image files
-    const file = e.dataTransfer.files[0];
-    if (file) {
-      if (file.type.startsWith("image/") || file.name.endsWith(".svg")) {
-        insertImageFile(file);
-      } else {
-        processFile(file);
+  const fenceSelection = () => {
+    const el = ta.current;
+    if (!el) return;
+    const a = el.selectionStart;
+    const b = el.selectionEnd;
+    const chosen = el.value.slice(a, b);
+    if (!chosen.trim()) return wrap("```\n", "\n```");
+    const lang = detectLanguage(chosen).lang;
+    const block = pad(el.value.slice(0, a), el.value.slice(b), fence(chosen, lang));
+    setMd(el.value.slice(0, a) + block + el.value.slice(b));
+    setReport([`fenced the selection as ${lang}`]);
+  };
+
+  const tidy = () => {
+    const res = toMarkdown(md, { fragment: true });
+    setMd(res.markdown);
+    setReport(res.report.length ? res.report : ["nothing to fix"]);
+  };
+
+  // -------------------------------------------------------------- images
+
+  const addImages = useCallback(async (files: File[]): Promise<string[]> => {
+    const names: string[] = [];
+    const next = { ...imagesRef.current };
+    for (const file of files) {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const ext = extensionFor(file);
+      let base = slugify(file.name.replace(/\.[^.]+$/, "")) || "image";
+      if (/^image\d*$/.test(base)) base = `image-${Date.now().toString(36)}`;
+      let name = `${base}.${ext}`;
+      for (let n = 2; next[name] && !sameBytes(next[name].bytes, bytes); n++) name = `${base}-${n}.${ext}`;
+      if (!next[name]) {
+        const mime = file.type || (ext === "svg" ? "image/svg+xml" : `image/${ext}`);
+        next[name] = { name, mime, bytes, url: URL.createObjectURL(new Blob([bytes], { type: mime })) };
+        saveImage({ name, mime, bytes: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer });
       }
+      names.push(name);
+    }
+    imagesRef.current = next;
+    setImages(next);
+    return names;
+  }, []);
+
+  const dropImage = (name: string) => {
+    const { [name]: gone, ...rest } = imagesRef.current;
+    if (gone) URL.revokeObjectURL(gone.url);
+    imagesRef.current = rest;
+    setImages(rest);
+    removeImage(name);
+    if (f.cover === IMAGE_DIR + name) set({ cover: "" });
+  };
+
+  const imageMarkdown = (name: string) => `![](${IMAGE_DIR}${name})`;
+
+  // ------------------------------------------------------------- importing
+
+  const rewriteImageRefs = (text: string, byOriginal: Map<string, string>) =>
+    text.replace(/!\[([^\]]*)\]\(\s*<?([^)\s>]+)>?(?:\s+"[^"]*")?\s*\)/g, (whole, alt: string, src: string) => {
+      const stored = byOriginal.get(decodeURIComponent(src.split(/[\\/]/).pop() ?? "").toLowerCase());
+      return stored ? `![${alt}](${IMAGE_DIR}${stored})` : whole;
+    });
+
+  const handleFiles = useCallback(async (files: File[], replace: boolean) => {
+    const pics = files.filter(isImage);
+    const texts = files.filter((x) => !isImage(x));
+    const names = await addImages(pics);
+    const byOriginal = new Map(pics.map((p, i) => [p.name.toLowerCase(), names[i]]));
+
+    if (!texts.length) {
+      insertBlock(names.map(imageMarkdown).join("\n\n"));
+      setReport([`added ${names.length} image${names.length > 1 ? "s" : ""}`]);
+      return;
+    }
+    const file = texts[0];
+    const res = toMarkdown(await file.text(), { filename: file.name });
+    const out = rewriteImageRefs(res.markdown, byOriginal);
+    const notes = [...res.report];
+    if (texts.length > 1) notes.push(`only ${file.name} was read, ${texts.length - 1} other file${texts.length > 2 ? "s were" : " was"} skipped`);
+    if (pics.length) notes.push(`attached ${pics.length} image${pics.length > 1 ? "s" : ""}`);
+
+    if (replace || !md.trim()) {
+      setMd(out);
+      setF((p) => ({
+        ...p,
+        title: res.meta.title ?? (res.kind === "code" ? file.name : p.title),
+        date: res.meta.date ?? p.date,
+        description: res.meta.description ?? p.description,
+        descSet: Boolean(res.meta.description) || p.descSet,
+        tags: res.meta.tags?.join(", ") ?? p.tags,
+        tagsSet: Boolean(res.meta.tags) || p.tagsSet,
+        cover: res.meta.cover ?? p.cover,
+      }));
+    } else {
+      const el = ta.current;
+      const a = el?.selectionStart ?? md.length;
+      const b = el?.selectionEnd ?? md.length;
+      insert(pad(md.slice(0, a), md.slice(b), out));
+    }
+    setReport(notes.length ? notes : [`read ${file.name}, nothing needed fixing`]);
+  }, [addImages, insert, insertBlock, md]);
+
+  const onPaste = async (e: ClipboardEvent<HTMLTextAreaElement>) => {
+    const data = e.clipboardData;
+    const pics = Array.from(data.files).filter(isImage);
+    if (pics.length) {
+      e.preventDefault();
+      const names = await addImages(pics);
+      insertBlock(names.map(imageMarkdown).join("\n\n"));
+      setReport([`pasted ${names.length} image${names.length > 1 ? "s" : ""}`]);
+      return;
+    }
+    const text = data.getData("text/plain");
+    const html = data.getData("text/html");
+    const editor = data.getData("vscode-editor-data");
+    if (!text && !html) return;
+
+    let hint: string | null = null;
+    if (editor) {
+      try { hint = (JSON.parse(editor) as { mode?: string }).mode ?? null; } catch { /* not json */ }
+    }
+    const res = !editor && html && looksStructured(html)
+      ? toMarkdown(html, { filename: "paste.html", fragment: true })
+      : toMarkdown(text, { fragment: true, hint });
+    if (res.kind === "text" && res.markdown.trim() === text.trim()) return; // nothing to fix, let the browser paste it
+
+    e.preventDefault();
+    const el = e.currentTarget;
+    const a = el.selectionStart;
+    const b = el.selectionEnd;
+    const piece = isBlock(res.markdown) ? pad(el.value.slice(0, a), el.value.slice(b), res.markdown) : res.markdown.replace(/\n+$/, "");
+    insert(piece);
+    setReport(res.report);
+  };
+
+  const onDrop = (e: DragEvent<HTMLElement>) => {
+    e.preventDefault();
+    setDragging(false);
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length) handleFiles(files, false);
+  };
+
+  const onPick = (e: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = "";
+    if (!files.length) return;
+    if (md.trim() && files.some((x) => !isImage(x)) && !confirm("replace the current draft with this file?")) return;
+    handleFiles(files, true);
+  };
+
+  const onImagePick = async (e: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = "";
+    if (files.length) await handleFiles(files, false);
+  };
+
+  // --------------------------------------------------------- existing posts
+
+  const listPosts = async () => {
+    try {
+      const res = await fetch(`https://api.github.com/repos/${SITE.owner}/${SITE.repo}/contents/content/posts`);
+      const items = (await res.json()) as { name: string }[];
+      setPosts(items.filter((i) => i.name.endsWith(".md")).map((i) => i.name));
+    } catch {
+      setPosts([]);
     }
   };
 
-  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      processFile(file);
-    }
+  const openPost = async (name: string) => {
+    if (md.trim() && !confirm("replace the current draft with this post?")) return;
+    const res = await fetch(`https://raw.githubusercontent.com/${SITE.owner}/${SITE.repo}/${SITE.branch}/content/posts/${name}`);
+    const fm = parseFrontmatter(await res.text());
+    setMd(fm.body.trim() + "\n");
+    setF({
+      title: fm.meta.title ?? "", slug: name.replace(/\.md$/, ""), slugSet: true, date: fm.meta.date ?? today(),
+      description: fm.meta.description ?? "", descSet: true, tags: fm.meta.tags?.join(", ") ?? "", tagsSet: true, cover: fm.meta.cover ?? "",
+    });
+    setPosts(null);
+    setReport([`opened ${name} from the blog`]);
   };
 
-  // Insert markdown syntax helper
-  const insertMarkdown = (syntaxBefore: string, syntaxAfter: string = "") => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
+  // --------------------------------------------------------------- output
 
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const currentText = textarea.value;
-    const selectedText = currentText.substring(start, end);
+  const postFile = () =>
+    buildPostFile({
+      title, slug, date: f.date || today(), description, tags: tags.split(",").map((t) => t.trim()).filter(Boolean), cover: f.cover, body,
+    });
 
-    const replacement = syntaxBefore + selectedText + syntaxAfter;
-    const newText = currentText.substring(0, start) + replacement + currentText.substring(end);
-    
-    setMarkdown(newText);
-    
-    // Reset focus and selection
-    setTimeout(() => {
-      textarea.focus();
-      textarea.setSelectionRange(start + syntaxBefore.length, start + syntaxBefore.length + selectedText.length);
-    }, 0);
+  const copyMarkdown = () => {
+    navigator.clipboard.writeText(postFile());
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1600);
   };
 
-  // Convert image/svg file to Base64 Data URL and insert in markdown
-  const insertImageFile = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const base64Url = event.target?.result;
-      if (typeof base64Url === "string") {
-        const imageMarkdown = `\n![${file.name}](${base64Url})\n`;
-        
-        const textarea = textareaRef.current;
-        if (textarea) {
-          const start = textarea.selectionStart;
-          const end = textarea.selectionEnd;
-          const currentText = textarea.value;
-          
-          const newText = currentText.substring(0, start) + imageMarkdown + currentText.substring(end);
-          setMarkdown(newText);
-          
-          setTimeout(() => {
-            textarea.focus();
-            textarea.setSelectionRange(start + imageMarkdown.length, start + imageMarkdown.length);
-          }, 0);
-        } else {
-          setMarkdown((prev) => prev + imageMarkdown);
-        }
+  const download = () => {
+    const url = URL.createObjectURL(new Blob([postFile()], { type: "text/markdown" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${slug || "post"}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const publish = async () => {
+    const say = (line: string) => setLog((l) => [...l, line]);
+    setLog([]);
+    setLiveUrl("");
+    if (!title.trim()) return say("the post needs a title");
+    if (!slug) return say("the post needs a slug");
+    if (!body.trim()) return say("the post is empty");
+    if (!token.trim()) return say("paste a github token first");
+
+    setBusy(true);
+    try {
+      const target = { token: token.trim() };
+      say(`signed in as ${await whoami(target)}`);
+      localStorage.setItem(TOKEN_KEY, token.trim());
+
+      const svg = extractSvgs(body, slug);
+      const used = new Set(referencedImages(svg.markdown));
+      if (f.cover.startsWith(IMAGE_DIR)) used.add(f.cover.slice(IMAGE_DIR.length));
+
+      const path = `content/posts/${slug}.md`;
+      const files: PublishFile[] = [{ path, content: buildPostFile({
+        title, slug, date: f.date || today(), description, tags: tags.split(",").map((t) => t.trim()).filter(Boolean), cover: f.cover, body: svg.markdown,
+      }) }];
+      for (const name of used) {
+        const img = imagesRef.current[name];
+        if (img) files.push({ path: `assets/img/${name}`, content: img.bytes });
+        else say(`${name} is not in the editor, so the blog keeps whatever it already has`);
       }
-    };
-    reader.readAsDataURL(file);
-  };
+      for (const s of svg.files) files.push({ path: `assets/img/${s.name}`, content: s.content });
 
-  // Textarea paste handler to support pasting image files
-  const handlePaste = (e: any) => {
-    // 1. Check if files are in clipboard
-    const files = e.clipboardData?.files;
-    if (files && files.length > 0) {
-      const file = files[0];
-      if (file.type.startsWith("image/") || file.name?.endsWith(".svg")) {
-        e.preventDefault();
-        insertImageFile(file);
+      const exists = await fileExists(target, path);
+      if (exists && !confirm(`${slug} is already published. replace it?`)) {
+        say("cancelled");
         return;
       }
-    }
+      say(`committing ${files.length} file${files.length > 1 ? "s" : ""}`);
+      const done = await commitFiles(target, `${exists ? "update post" : "post"}: ${title.trim()}`, files);
+      say(`committed ${done.sha.slice(0, 7)}`);
 
-    // 2. Check items fallback
-    const items = e.clipboardData?.items;
-    if (items) {
-      for (let i = 0; i < items.length; i++) {
-        if (items[i].type.indexOf("image") !== -1 || items[i].name?.endsWith(".svg")) {
-          const file = items[i].getAsFile();
-          if (file) {
-            e.preventDefault();
-            insertImageFile(file);
-            return;
-          }
-        }
-      }
+      const result = await waitForDeploy(target, done.sha, say);
+      const url = `${SITE.url}/posts/${slug}/`;
+      setLiveUrl(url);
+      say(result === "success" ? "live" : result === "failure" ? "the build failed, check the actions tab" : "pushed. it goes live in about a minute");
+    } catch (err) {
+      say(explain(err));
+    } finally {
+      setBusy(false);
     }
   };
 
-  // Textarea drag-over logic for direct dropping
-  const handleTextareaDrop = (e: DragEvent<HTMLTextAreaElement>) => {
-    const file = e.dataTransfer.files[0];
-    if (file) {
-      e.preventDefault();
-      if (file.type.startsWith("image/") || file.name.endsWith(".svg")) {
-        insertImageFile(file);
-      } else {
-        processFile(file);
-      }
-    }
+  const clearAll = async () => {
+    if (!confirm("clear the draft and its images?")) return;
+    setMd("");
+    setF({ ...BLANK, date: today() });
+    setReport([]);
+    Object.values(imagesRef.current).forEach((i) => URL.revokeObjectURL(i.url));
+    imagesRef.current = {};
+    setImages({});
+    await clearImages();
   };
+
+  const onLang = (index: number, lang: Lang) => setMd((m) => setFenceLang(m, index, lang));
+
+  // --------------------------------------------------------------- render
+
+  const tool = "p-1.5 rounded text-ink-faint hover:text-gold hover:bg-surface-2 transition-colors cursor-pointer";
+  const btn = "px-3 py-1.5 rounded border border-rule-strong font-mono text-[12px] text-ink-soft hover:text-gold hover:border-gold transition-colors cursor-pointer inline-flex items-center gap-1.5";
+  const field = "w-full bg-surface border border-rule-strong rounded px-3 py-2 text-[14px] text-ink focus:outline-none focus:border-gold";
+  const label = "block font-mono text-[11px] text-ink-faint mb-1";
 
   return (
-    <div className={`w-full mx-auto pb-6 flex flex-col min-h-[92vh] py-4 ${layoutMode === "split" ? "max-w-[1600px] px-6" : "max-w-[760px] px-4"}`}>
-      {/* Top Header bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 border-b border-card-border pb-4">
-        <div className="flex items-center gap-3">
-          <Link 
-            href="/" 
-            className="p-1.5 rounded-lg border border-card-border hover:bg-pill-bg text-muted hover:text-foreground transition-all"
-            title="Back to home"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </Link>
-          <div>
-            <h1 className="text-lg font-semibold tracking-tight text-foreground flex items-center gap-2">
-              Draft Writer <span className="text-[9px] px-2 py-0.5 bg-pill-bg border border-pill-border text-muted font-mono rounded-full font-normal uppercase tracking-widest">Client-Only</span>
-            </h1>
-            {/* Autosave badge */}
-            <div className="flex items-center gap-1.5 text-xs text-muted font-mono mt-0.5">
-              <span className={`w-1.5 h-1.5 rounded-full ${isSaving ? "bg-amber-500 animate-pulse" : "bg-green-500"}`} />
-              <span>{isSaving ? "saving..." : saveStatus}</span>
-            </div>
+    <div className="min-h-screen bg-bg text-ink flex flex-col">
+      <header className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 py-3 border-b border-rule-strong">
+        <div className="flex items-center gap-3 min-w-0">
+          <Link href="/" className={tool} title="home"><ChevronLeft className="w-4 h-4" /></Link>
+          <div className="min-w-0">
+            <h1 className="text-[17px] font-semibold tracking-tight leading-none">writing studio</h1>
+            <p className="font-mono text-[11px] text-ink-faint mt-1">{saved || "ready"} · {words} words</p>
           </div>
         </div>
-
-        {/* Action Controls */}
-        <div className="flex items-center gap-3 self-end sm:self-center">
-          {/* Stats badge */}
-          <div className="hidden md:flex items-center gap-4 text-xs font-mono text-muted border border-card-border px-3 py-1.5 rounded-lg bg-card-bg/20">
-            <span>{wordCount} words</span>
-            <span>{charCount} chars</span>
-            <span>{readTime} min read</span>
-          </div>
-
-          {/* Segmented Layout Selector */}
-          <div className="flex border border-card-border rounded-lg overflow-hidden bg-card-bg/30 p-0.5">
-            <button
-              onClick={() => setLayoutMode("edit")}
-              className={`flex items-center gap-1 px-3 py-1 text-xs font-mono rounded-md transition-all cursor-pointer ${
-                layoutMode === "edit" ? "bg-foreground text-background" : "text-muted hover:text-foreground"
-              }`}
-            >
-              <Edit2 className="w-3.5 h-3.5" />
-              <span>Edit</span>
-            </button>
-            <button
-              onClick={() => setLayoutMode("split")}
-              className={`hidden md:flex items-center gap-1 px-3 py-1 text-xs font-mono rounded-md transition-all cursor-pointer ${
-                layoutMode === "split" ? "bg-foreground text-background" : "text-muted hover:text-foreground"
-              }`}
-            >
-              <Layout className="w-3.5 h-3.5" />
-              <span>Split</span>
-            </button>
-            <button
-              onClick={() => setLayoutMode("preview")}
-              className={`flex items-center gap-1 px-3 py-1 text-xs font-mono rounded-md transition-all cursor-pointer ${
-                layoutMode === "preview" ? "bg-foreground text-background" : "text-muted hover:text-foreground"
-              }`}
-            >
-              <Eye className="w-3.5 h-3.5" />
-              <span>Preview</span>
-            </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button className={btn} onClick={() => fileInput.current?.click()}><Upload className="w-3.5 h-3.5" /> import</button>
+          <button className={btn} onClick={tidy}><Sparkles className="w-3.5 h-3.5" /> tidy</button>
+          <button className={btn} onClick={copyMarkdown}>{copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />} copy md</button>
+          <button className={btn} onClick={download}><Download className="w-3.5 h-3.5" /> .md</button>
+          <button className={`${btn} !bg-ink !text-bg hover:!bg-gold hover:!text-bg`} onClick={() => setPanel(true)}>publish</button>
+          <div className="hidden md:flex border border-rule-strong rounded overflow-hidden font-mono text-[11px]">
+            {(["edit", "split", "preview"] as Layout[]).map((m) => (
+              <button key={m} onClick={() => setLayout(m)} className={`px-2.5 py-1.5 cursor-pointer ${layout === m ? "bg-surface-2 text-ink" : "text-ink-faint hover:text-gold"}`}>{m}</button>
+            ))}
           </div>
         </div>
-      </div>
+      </header>
 
-      {/* Editor & Preview containers */}
-      <div className={`w-full flex ${layoutMode === "split" ? "flex-col md:flex-row gap-6 h-[calc(100vh-200px)] overflow-hidden" : "flex-col"}`}>
-        
-        {/* Editor Column */}
-        {(layoutMode === "edit" || layoutMode === "split") && (
-          <div className={`flex flex-col flex-1 ${layoutMode === "split" ? "h-full min-w-0" : ""}`}>
-            {/* Toolbar */}
-            <div className="flex flex-wrap items-center gap-1 border border-card-border bg-card-bg/40 p-1.5 rounded-t-xl select-none">
-              <button
-                onClick={() => insertMarkdown("**", "**")}
-                className="p-1.5 rounded hover:bg-pill-bg text-muted hover:text-foreground transition-colors cursor-pointer"
-                title="Bold"
-              >
-                <Bold className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => insertMarkdown("*", "*")}
-                className="p-1.5 rounded hover:bg-pill-bg text-muted hover:text-foreground transition-colors cursor-pointer"
-                title="Italic"
-              >
-                <Italic className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => insertMarkdown("# ")}
-                className="p-1.5 rounded hover:bg-pill-bg text-muted hover:text-foreground transition-colors cursor-pointer"
-                title="Heading 1"
-              >
-                <Heading1 className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => insertMarkdown("## ")}
-                className="p-1.5 rounded hover:bg-pill-bg text-muted hover:text-foreground transition-colors cursor-pointer"
-                title="Heading 2"
-              >
-                <Heading2 className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => insertMarkdown("[text](", ")")}
-                className="p-1.5 rounded hover:bg-pill-bg text-muted hover:text-foreground transition-colors cursor-pointer"
-                title="Insert Link"
-              >
-                <LinkIcon className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => insertMarkdown("> ")}
-                className="p-1.5 rounded hover:bg-pill-bg text-muted hover:text-foreground transition-colors cursor-pointer"
-                title="Blockquote"
-              >
-                <Quote className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => insertMarkdown("```\n", "\n```")}
-                className="p-1.5 rounded hover:bg-pill-bg text-muted hover:text-foreground transition-colors cursor-pointer"
-                title="Code Block"
-              >
-                <Code className="w-4 h-4" />
-              </button>
-              
-              <div className="w-[1px] h-4 bg-card-border mx-1" />
-              
-              {/* Upload image button */}
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="p-1.5 rounded hover:bg-pill-bg text-muted hover:text-foreground transition-colors cursor-pointer"
-                title="Upload Image/SVG"
-              >
-                <ImageIcon className="w-4 h-4" />
-              </button>
-              
-              {/* Clear draft */}
-              {markdown && (
-                <button
-                  onClick={() => {
-                    if (confirm("Are you sure you want to clear this draft?")) {
-                      setMarkdown("");
-                    }
-                  }}
-                  className="p-1.5 rounded hover:bg-pill-bg text-red-500 hover:text-red-400 transition-colors cursor-pointer ml-auto"
-                  title="Clear Draft"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              )}
+      <input ref={fileInput} type="file" multiple accept=".md,.markdown,.txt,.html,.htm,.rs,.go,.ts,.tsx,.js,.jsx,.py,.c,.h,.cpp,.hpp,.java,.sql,.sh,.json,.yaml,.yml,.toml,.css,image/*,.svg" className="hidden" onChange={onPick} />
+      <input ref={imageInput} type="file" multiple accept="image/*,.svg" className="hidden" onChange={onImagePick} />
+
+      <main className={`flex-1 grid gap-0 ${layout === "split" ? "md:grid-cols-2" : "grid-cols-1"} min-h-0`}>
+        {layout !== "preview" && (
+          <section className="flex flex-col border-r border-rule min-w-0" onDragOver={(e) => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={onDrop}>
+            <div className="flex flex-wrap items-center gap-0.5 px-3 py-1.5 border-b border-rule">
+              <button className={tool} title="bold" onClick={() => wrap("**")}><Bold className="w-4 h-4" /></button>
+              <button className={tool} title="italic" onClick={() => wrap("*")}><Italic className="w-4 h-4" /></button>
+              <button className={tool} title="heading" onClick={() => wrap("\n## ", "")}><Heading2 className="w-4 h-4" /></button>
+              <button className={tool} title="link" onClick={() => wrap("[", "](https://)")}><LinkIcon className="w-4 h-4" /></button>
+              <button className={tool} title="quote" onClick={() => wrap("\n> ", "")}><Quote className="w-4 h-4" /></button>
+              <button className={tool} title="code. select text first and the language is detected" onClick={fenceSelection}><Code className="w-4 h-4" /></button>
+              <button className={tool} title="add images" onClick={() => imageInput.current?.click()}><ImageIcon className="w-4 h-4" /></button>
+              <div className="ml-auto flex items-center gap-1">
+                <button className="font-mono text-[11px] text-ink-faint hover:text-gold px-2 cursor-pointer" onClick={listPosts}>open a post</button>
+                {md && <button className={`${tool} hover:!text-red-700`} title="clear draft" onClick={clearAll}><Trash2 className="w-4 h-4" /></button>}
+              </div>
             </div>
 
-            {/* Hidden file input */}
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) {
-                  if (file.type.startsWith("image/") || file.name.endsWith(".svg")) {
-                    insertImageFile(file);
-                  } else {
-                    processFile(file);
-                  }
-                }
-              }}
-              accept=".md,.txt,.markdown,image/*,.svg"
-              className="hidden"
-            />
-
-            {/* Drag Zone Drop Area wrapper */}
-            <div
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              className="flex-1 flex flex-col min-h-[250px] relative"
-            >
-              <textarea
-                ref={textareaRef}
-                value={markdown}
-                onChange={(e) => setMarkdown(e.target.value)}
-                onPaste={handlePaste}
-                onDrop={handleTextareaDrop}
-                placeholder="# Setup your blog draft here...&#10;&#10;Drag and drop images, SVGs, or markdown files directly into this area! Use the toolbar above to style your content."
-                className={`w-full flex-1 p-4 rounded-b-xl border border-t-0 border-card-border bg-card-bg/20 text-foreground font-mono text-sm focus:outline-none focus:border-card-border transition-all resize-none leading-relaxed ${
-                  layoutMode === "split" ? "h-full" : "h-[450px]"
-                }`}
-              />
-
-              {/* Drag Over Overlay */}
-              {isDragOver && (
-                <div className="absolute inset-0 bg-background/80 border-2 border-dashed border-foreground rounded-b-xl flex flex-col items-center justify-center gap-3 backdrop-blur-sm z-30">
-                  <div className="p-3 rounded-full bg-pill-bg border border-pill-border">
-                    <Upload className="w-6 h-6 text-foreground animate-bounce" />
-                  </div>
-                  <p className="text-sm font-medium text-foreground">
-                    Drop your markdown file, image, or SVG to insert!
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Preview Column */}
-        {(layoutMode === "preview" || layoutMode === "split") && (
-          <div 
-            className={`flex-1 overflow-y-auto min-w-0 ${
-              layoutMode === "split" 
-                ? "h-full border border-card-border rounded-xl p-6 bg-card-bg/5" 
-                : "border-t border-card-border pt-10"
-            }`}
-          >
-            {/* Split Screen Header */}
-            {layoutMode === "split" && (
-              <div className="flex items-center gap-2 mb-6 border-b border-card-border pb-3 text-xs font-mono text-muted uppercase tracking-wider">
-                <Sparkles className="w-3.5 h-3.5 text-muted" />
-                <span>Live Rendering Preview</span>
+            {posts && (
+              <div className="px-3 py-2 border-b border-rule bg-surface-2 flex flex-wrap gap-2 font-mono text-[12px]">
+                {posts.length === 0 && <span className="text-ink-faint">no posts found</span>}
+                {posts.map((p) => <button key={p} onClick={() => openPost(p)} className="text-gold hover:underline cursor-pointer">{p.replace(/\.md$/, "")}</button>)}
+                <button onClick={() => setPosts(null)} className="ml-auto text-ink-faint cursor-pointer"><X className="w-3.5 h-3.5" /></button>
               </div>
             )}
 
-            <div className="blog-content prose max-w-none">
-              {previewMarkdown.trim() === "" ? (
-                <div className="flex flex-col items-center justify-center py-20 text-center text-muted font-mono text-sm gap-2">
-                  <Sparkles className="w-5 h-5 text-neutral-600" />
-                  <span>Preview is empty. Start typing to see it render beautifully!</span>
+            <div className="relative flex-1 flex flex-col min-h-[55vh]">
+              <textarea
+                ref={ta}
+                value={md}
+                onChange={(e) => setMd(e.target.value)}
+                onPaste={onPaste}
+                spellCheck
+                placeholder={"paste anything. markdown, plain text, a web page, a chat answer, code, a screenshot.\ncode is found and fenced with its language. images are kept.\n\nor drop files here, a .md and its images together work."}
+                className="flex-1 w-full resize-none bg-transparent p-4 sm:p-5 font-mono text-[13.5px] leading-[1.7] text-ink placeholder:text-ink-faint focus:outline-none"
+              />
+              {dragging && (
+                <div className="absolute inset-0 bg-bg/85 border-2 border-dashed border-gold flex items-center justify-center font-mono text-[13px] text-gold pointer-events-none">
+                  drop a file, or images
                 </div>
-              ) : (
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  components={{
-                    h1: ({node, ...props}) => <h1 className="text-[26px] md:text-[32px] font-semibold text-foreground mt-8 mb-4 tracking-tight leading-tight" {...props} />,
-                    h2: ({node, ...props}) => <h2 className="text-[18px] md:text-[21px] font-semibold text-foreground mt-8 mb-4 tracking-tight" {...props} />,
-                    h3: ({node, ...props}) => <h3 className="text-[15px] md:text-[17px] font-semibold text-foreground mt-6 mb-3 tracking-tight" {...props} />,
-                    p: ({node, ...props}) => <p className="text-muted leading-relaxed text-[15px] mb-5 tracking-tight" {...props} />,
-                    li: ({node, ...props}) => <li className="text-muted leading-relaxed text-[15px] mb-2 list-none flex gap-3"><span className="text-neutral-500 mt-1.5 text-xs">•</span><span {...props} /></li>,
-                    code: ({node, className, children, ...props}: any) => {
-                      const match = /language-(\w+)/.exec(className || '');
-                      
-                      // Intercept inline-svg language to render raw SVG visually
-                      if (match && match[1] === 'inline-svg') {
-                        return (
-                          <div className="my-6 flex flex-col items-center gap-2 bg-neutral-900/50 border border-card-border rounded-xl p-6 overflow-auto max-w-full group/svg relative">
-                            <div 
-                              className="w-full flex justify-center"
-                              dangerouslySetInnerHTML={{ __html: String(children) }}
-                            />
-                            <span className="absolute top-2 right-2 opacity-0 group-hover/svg:opacity-100 transition-opacity text-[10px] font-mono text-zinc-500 bg-black/60 px-2 py-0.5 rounded border border-card-border select-none">
-                              SVG Graphic
-                            </span>
-                          </div>
-                        );
-                      }
-                      
-                      const isBlock = !!match || String(children).includes('\n') || String(children).length > 60;
-                      
-                      if (!isBlock) {
-                        return (
-                          <code 
-                            className="inline px-1.5 py-0.5 rounded bg-pill-bg text-foreground text-[0.9em] border border-pill-border font-mono align-baseline mx-0.5" 
-                            {...props}
-                          >
-                            {children}
-                          </code>
-                        );
-                      }
-
-                      const initialDetectedLang = match ? match[1] : detectLanguage(String(children));
-                      return (
-                        <CustomCodeBlock initialLang={initialDetectedLang}>
-                          {children}
-                        </CustomCodeBlock>
-                      );
-                    },
-                    blockquote: ({node, ...props}) => (
-                      <blockquote className="my-6 p-5 rounded-2xl bg-pill-bg border border-pill-border relative overflow-hidden group" {...props}>
-                        <div className="absolute top-0 left-0 w-1 h-full bg-muted" />
-                        <div className="text-[15px] text-foreground italic leading-relaxed relative z-10" />
-                      </blockquote>
-                    ),
-                    hr: ({node, ...props}) => <hr className="my-8 border-card-border" {...props} />,
-                    img: ({node, ...props}: any) => (
-                      <div className="my-6 rounded-2xl overflow-hidden border border-card-border bg-pill-bg p-1">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img className="w-full object-contain max-h-[400px] rounded-xl" {...props} alt={props.alt || "blog image"} />
-                      </div>
-                    ),
-                    a: ({node, ...props}: any) => (
-                      <a className="text-foreground underline decoration-dotted underline-offset-4 decoration-muted hover:text-accent transition-colors" {...props} />
-                    )
-                  }}
-                >
-                  {preprocessMarkdown(previewMarkdown)}
-                </ReactMarkdown>
               )}
             </div>
-          </div>
+
+            {(report.length > 0 || Object.keys(images).length > 0) && (
+              <div className="border-t border-rule px-3 py-2 space-y-2">
+                {report.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 items-center font-mono text-[11.5px] text-ink-soft">
+                    {report.map((r) => <span key={r} className="px-2 py-0.5 rounded bg-surface-2">{r}</span>)}
+                    <button onClick={() => setReport([])} className="text-ink-faint hover:text-gold cursor-pointer"><X className="w-3.5 h-3.5" /></button>
+                  </div>
+                )}
+                {Object.keys(images).length > 0 && (
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    {Object.values(images).map((img) => (
+                      <div key={img.name} className="relative shrink-0 w-20 group">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={img.url} alt="" title={`click to insert ${img.name}`} onClick={() => insertBlock(imageMarkdown(img.name))} className="w-20 h-14 object-cover rounded border border-rule-strong cursor-pointer bg-white" />
+                        <button onClick={() => dropImage(img.name)} className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-ink text-bg hidden group-hover:flex items-center justify-center cursor-pointer" title="remove"><X className="w-3 h-3" /></button>
+                        <p className="font-mono text-[9.5px] text-ink-faint truncate mt-0.5">{img.name}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
         )}
 
-      </div>
+        {layout !== "edit" && (
+          <section className="overflow-y-auto px-5 sm:px-8 py-6 bg-bg min-w-0 md:max-h-[calc(100vh-61px)]">
+            {md.trim() ? (
+              <Preview markdown={body} title={title} byline={byline} images={previewImages} onLang={onLang} />
+            ) : (
+              <p className="font-mono text-[12.5px] text-ink-faint">the preview looks like the published blog. start writing or paste something.</p>
+            )}
+          </section>
+        )}
+      </main>
+
+      {panel && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-ink/30" onClick={() => setPanel(false)}>
+          <aside className="w-full max-w-[28rem] h-full overflow-y-auto bg-bg border-l border-rule-strong p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h2 className="text-[16px] font-semibold">publish to {SITE.url.replace("https://", "")}</h2>
+              <button onClick={() => setPanel(false)} className={tool}><X className="w-4 h-4" /></button>
+            </div>
+
+            <div><label className={label}>title</label><input className={field} value={title} onChange={(e) => set({ title: e.target.value })} /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className={label}>slug</label><input className={field} value={slug} onChange={(e) => set({ slug: slugify(e.target.value), slugSet: true })} /></div>
+              <div><label className={label}>date</label><input className={field} type="date" value={f.date} onChange={(e) => set({ date: e.target.value })} /></div>
+            </div>
+            <div><label className={label}>description</label><textarea className={`${field} resize-none`} rows={3} value={description} onChange={(e) => set({ description: e.target.value, descSet: true })} /></div>
+            <div><label className={label}>tags, comma separated</label><input className={field} value={tags} onChange={(e) => set({ tags: e.target.value, tagsSet: true })} /></div>
+            <div>
+              <label className={label}>cover image, used for the link preview</label>
+              <select className={field} value={f.cover} onChange={(e) => set({ cover: e.target.value })}>
+                <option value="">none</option>
+                {Object.values(images).map((i) => <option key={i.name} value={IMAGE_DIR + i.name}>{i.name}</option>)}
+                {f.cover && !images[f.cover.slice(IMAGE_DIR.length)] && <option value={f.cover}>{f.cover.slice(IMAGE_DIR.length)}</option>}
+              </select>
+            </div>
+
+            <div>
+              <label className={label}>github token</label>
+              <input className={field} type="password" autoComplete="off" placeholder="github_pat_..." value={token} onChange={(e) => setToken(e.target.value)} />
+              <p className="font-mono text-[11px] text-ink-faint mt-1.5 leading-relaxed">
+                stays in this browser only. make a fine-grained token for {SITE.owner}/{SITE.repo} with Contents read and write, and Actions read.{" "}
+                <a className="text-gold underline" href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noreferrer">create one</a>
+                {token && <> · <button className="text-gold underline cursor-pointer" onClick={() => { setToken(""); localStorage.removeItem(TOKEN_KEY); }}>forget it</button></>}
+              </p>
+            </div>
+
+            <button disabled={busy} onClick={publish} className="w-full py-2.5 rounded bg-ink text-bg font-mono text-[13px] hover:bg-gold transition-colors disabled:opacity-50 cursor-pointer">
+              {busy ? "publishing..." : "publish"}
+            </button>
+
+            {log.length > 0 && (
+              <ul className="font-mono text-[12px] text-ink-soft space-y-1">
+                {log.map((l, i) => <li key={i}>{l}</li>)}
+              </ul>
+            )}
+            {liveUrl && <a className="block font-mono text-[12.5px] text-gold underline break-all" href={liveUrl} target="_blank" rel="noreferrer">{liveUrl}</a>}
+          </aside>
+        </div>
+      )}
     </div>
   );
 }
