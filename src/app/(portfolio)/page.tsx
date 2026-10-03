@@ -98,7 +98,7 @@ export default function Home() {
               <ScrambleText text="pawan" scrambleDelay={1200} />
             </h1>
             <p className="font-mono text-[12px] sm:text-[12.5px] text-ink-faint tracking-wide">
-              Cintu07 · rust/c++ · databases &amp; inference
+              Cintu07 · rust / go / typescript · ml infra, databases &amp; inference
             </p>
           </div>
         </header>
@@ -126,6 +126,10 @@ export default function Home() {
               dhanamcollections.com
             </a>
             , which i built on my own and still run.
+          </p>
+          <p>
+            i am good at ml infra, databases and inference, and i write rust, go and
+            typescript.
           </p>
           <p>
             right now i am mostly in gpu kernels and inference internals. rust and c++,
