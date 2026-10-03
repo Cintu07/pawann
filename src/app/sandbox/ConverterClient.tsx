@@ -5,8 +5,8 @@ import Link from "next/link";
 import { Bold, ChevronLeft, Code, Download, Heading2, Image as ImageIcon, Italic, Link as LinkIcon, Quote, Sparkles, Trash2, Upload, X, Copy, Check } from "lucide-react";
 import "./studio.css";
 import Preview from "./Preview";
-import { detectLanguage, fence, parseFrontmatter, setFenceLang, toMarkdown, type Lang } from "@/lib/studio/convert";
-import { buildPostFile, describe, extractSvgs, IMAGE_DIR, readingMinutes, referencedImages, slugify, stripLeadingTitle, suggestTags, today } from "@/lib/studio/post";
+import { detectLanguage, fence, looksLikeHtmlDocument, parseFrontmatter, setFenceLang, toMarkdown, type ConvertResult, type Lang } from "@/lib/studio/convert";
+import { buildPostFile, describe, extractSvgs, IMAGE_DIR, readingMinutes, referencedImages, slugFromTitle, slugify, stripLeadingTitle, suggestTags, today } from "@/lib/studio/post";
 import { commitFiles, explain, fileExists, readText, SITE, upsertBook, waitForDeploy, whoami, type BookEntry, type PublishFile } from "@/lib/studio/publish";
 import { clearImages, loadImages, removeImage, saveImage } from "@/lib/studio/store";
 
@@ -64,6 +64,13 @@ function pad(before: string, after: string, text: string): string {
 }
 
 const isBlock = (md: string) => /^(```|~~~|#{1,6}\s|>\s|\|)/.test(md) || md.includes("\n\n");
+
+/** point image links at the names the images were stored under */
+const rewriteImageRefs = (text: string, byOriginal: Map<string, string>) =>
+  text.replace(/!\[([^\]]*)\]\(\s*<?([^)\s>]+)>?(?:\s+"[^"]*")?\s*\)/g, (whole, alt: string, src: string) => {
+    const stored = byOriginal.get(decodeURIComponent(src.split(/[\\/]/).pop() ?? "").toLowerCase());
+    return stored ? `![${alt}](${IMAGE_DIR}${stored})` : whole;
+  });
 
 export default function ConverterClient() {
   const [md, setMd] = useState("");
@@ -138,7 +145,7 @@ export default function ConverterClient() {
 
   const h1 = useMemo(() => /^#\s+(.+)$/m.exec(md)?.[1]?.trim() ?? "", [md]);
   const title = f.title || h1;
-  const slug = f.slugSet ? f.slug : slugify(title);
+  const slug = f.slugSet ? f.slug : slugFromTitle(title);
   const description = f.descSet ? f.description : describe(stripLeadingTitle(md, title));
   const tags = f.tagsSet ? f.tags : suggestTags(md).join(", ");
   const words = md.trim() ? md.trim().split(/\s+/).length : 0;
@@ -243,11 +250,24 @@ export default function ConverterClient() {
 
   // ------------------------------------------------------------- importing
 
-  const rewriteImageRefs = (text: string, byOriginal: Map<string, string>) =>
-    text.replace(/!\[([^\]]*)\]\(\s*<?([^)\s>]+)>?(?:\s+"[^"]*")?\s*\)/g, (whole, alt: string, src: string) => {
-      const stored = byOriginal.get(decodeURIComponent(src.split(/[\\/]/).pop() ?? "").toLowerCase());
-      return stored ? `![${alt}](${IMAGE_DIR}${stored})` : whole;
+  /** a whole web page becomes the draft: its text, its diagrams stored as images, and its title, date and tags in the fields */
+  const adoptDocument = useCallback(async (res: ConvertResult, source: string, attached = new Map<string, string>()) => {
+    const diagrams = (res.figures ?? []).map((g) => new File([g.content], g.name, { type: "image/svg+xml" }));
+    const stored = await addImages(diagrams);
+    const byOriginal = new Map(attached);
+    diagrams.forEach((d, i) => byOriginal.set(d.name.toLowerCase(), stored[i]));
+    setMd(rewriteImageRefs(res.markdown, byOriginal));
+    setF({
+      ...BLANK,
+      title: res.meta.title ?? "",
+      date: res.meta.date ?? today(),
+      description: res.meta.description ?? "",
+      descSet: Boolean(res.meta.description),
+      tags: res.meta.tags?.join(", ") ?? "",
+      tagsSet: Boolean(res.meta.tags),
     });
+    setReport([...res.report, `from ${source}, the draft is ready to publish`]);
+  }, [addImages]);
 
   const handleFiles = useCallback(async (files: File[], replace: boolean) => {
     const pics = files.filter(isImage);
@@ -262,6 +282,11 @@ export default function ConverterClient() {
     }
     const file = texts[0];
     const res = toMarkdown(await file.text(), { filename: file.name });
+    if (res.document) {
+      if (md.trim() && !replace && !confirm("this is a whole page. replace the current draft with it?")) return;
+      await adoptDocument(res, file.name, byOriginal);
+      return;
+    }
     const out = rewriteImageRefs(res.markdown, byOriginal);
     const notes = [...res.report];
     if (texts.length > 1) notes.push(`only ${file.name} was read, ${texts.length - 1} other file${texts.length > 2 ? "s were" : " was"} skipped`);
@@ -286,7 +311,7 @@ export default function ConverterClient() {
       insert(pad(md.slice(0, a), md.slice(b), out));
     }
     setReport(notes.length ? notes : [`read ${file.name}, nothing needed fixing`]);
-  }, [addImages, insert, insertBlock, md]);
+  }, [addImages, adoptDocument, insert, insertBlock, md]);
 
   const onPaste = async (e: ClipboardEvent<HTMLTextAreaElement>) => {
     const data = e.clipboardData;
@@ -302,6 +327,14 @@ export default function ConverterClient() {
     const html = data.getData("text/html");
     const editor = data.getData("vscode-editor-data");
     if (!text && !html) return;
+
+    // the source of a whole page, however big: it never reaches the editor, only the post made from it does
+    if (looksLikeHtmlDocument(text)) {
+      e.preventDefault();
+      if (md.trim() && !confirm("this is a whole web page. replace the current draft with it as a post?")) return;
+      await adoptDocument(toMarkdown(text, { filename: "paste.html" }), "the pasted html");
+      return;
+    }
 
     let hint: string | null = null;
     if (editor) {
@@ -525,9 +558,9 @@ export default function ConverterClient() {
           <button className={btn} onClick={copyMarkdown}>{copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />} copy md</button>
           <button className={btn} onClick={download}><Download className="w-3.5 h-3.5" /> .md</button>
           <button className={`${btn} !bg-ink !text-bg hover:!bg-gold hover:!text-bg`} onClick={() => setPanel(true)}>publish</button>
-          <div className="hidden md:flex border border-rule-strong rounded overflow-hidden font-mono text-[11px]">
+          <div className="flex border border-rule-strong rounded overflow-hidden font-mono text-[11px]">
             {(["edit", "split", "preview"] as Layout[]).map((m) => (
-              <button key={m} onClick={() => setLayout(m)} className={`px-2.5 py-1.5 cursor-pointer ${layout === m ? "bg-surface-2 text-ink" : "text-ink-faint hover:text-gold"}`}>{m}</button>
+              <button key={m} onClick={() => setLayout(m)} className={`px-3 md:px-2.5 py-1.5 cursor-pointer ${m === "split" ? "hidden md:block" : ""} ${layout === m ? "bg-surface-2 text-ink" : "text-ink-faint hover:text-gold"}`}>{m}</button>
             ))}
           </div>
         </div>
@@ -568,7 +601,7 @@ export default function ConverterClient() {
                 onChange={(e) => setMd(e.target.value)}
                 onPaste={onPaste}
                 spellCheck
-                placeholder={"paste anything. markdown, plain text, a web page, a chat answer, code, a screenshot.\ncode is found and fenced with its language. images are kept.\n\nor drop files here, a .md and its images together work."}
+                placeholder={"paste anything. markdown, plain text, a web page, a chat answer, code, a screenshot.\ncode is found and fenced with its language. images are kept.\n\nor drop files here, a .md and its images together work.\n\na whole html page, even a huge one, becomes a finished post: paste its source or drop the .html file.\nthe title, intro, code, tables and every diagram are filled in for you."}
                 className="flex-1 w-full resize-none bg-transparent p-4 sm:p-5 font-mono text-[13.5px] leading-[1.7] text-ink placeholder:text-ink-faint focus:outline-none"
               />
               {dragging && (

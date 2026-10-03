@@ -26,49 +26,84 @@
   font-style: normal;
   font-display: swap;
 }
+@font-face {
+  font-family: "Virgil";
+  src: url("/fonts/blog/virgil.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Cascadia Code";
+  src: url("/fonts/blog/cascadia-code.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
 
-/* the preview is meant to look like the published blog */
+/* the preview is meant to look like the published blog: white page, virgil headings, code in a fixed width face */
 .studio-prose {
-  font-family: "ET Book", serif;
+  --p-ink: #1e1e1e;
+  --p-soft: #495057;
+  --p-faint: #6c737a;
+  --p-accent: #1971c2;
+  --p-rule: #e9ecef;
+  --p-rule-strong: #ced4da;
+  --p-paper: #f6f7f8;
+  --p-chip: #f1f3f5;
+  --p-mono: "Cascadia Code", ui-monospace, Consolas, monospace;
+  background: #fff;
+  color: var(--p-ink);
+  padding: 1.4rem clamp(1rem, 3vw, 2rem) 2rem;
+  border-radius: 6px;
+  font-family: "ET Book", Georgia, serif;
   font-size: 1.22rem;
   line-height: 1.55;
-  color: var(--ink);
   overflow-wrap: break-word;
+  min-width: 0;
 }
-.studio-prose h1 { margin: 0 0 0.4rem; font-size: 2.3rem; line-height: 1.12; font-weight: 400; letter-spacing: -0.01em; }
-.studio-prose h2 { margin: 2.2rem 0 0.6rem; font-size: 1.75rem; line-height: 1.15; font-weight: 400; font-style: italic; }
-.studio-prose h3 { margin: 1.8rem 0 0.5rem; font-size: 1.4rem; line-height: 1.15; font-weight: 400; font-style: italic; }
+.studio-prose h1 { margin: 0 0 0.4rem; font-family: "Virgil", "ET Book", cursive; font-size: 2.1rem; line-height: 1.2; font-weight: 400; }
+.studio-prose h2 { margin: 2.2rem 0 0.6rem; font-family: "Virgil", "ET Book", cursive; font-size: 1.5rem; line-height: 1.2; font-weight: 400; color: var(--p-accent); }
+.studio-prose h3 { margin: 1.8rem 0 0.5rem; font-family: "Virgil", "ET Book", cursive; font-size: 1.25rem; line-height: 1.2; font-weight: 400; }
 .studio-prose p { margin: 0 0 1.05em; }
 .studio-prose strong { font-weight: 700; }
-.studio-prose a { color: var(--gold); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.18em; }
-.studio-prose .byline { margin: 0 0 1.4rem; font-size: 1rem; color: var(--ink-faint); }
+.studio-prose a { color: var(--p-accent); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.18em; }
+.studio-prose .byline { margin: 0 0 1.4rem; font-size: 1rem; color: var(--p-faint); }
 .studio-prose ul, .studio-prose ol { margin: 0 0 1.2em; padding-left: 1.5em; }
 .studio-prose ul { list-style: disc; }
 .studio-prose ol { list-style: decimal; }
 .studio-prose li { margin: 0.25em 0; }
-.studio-prose li::marker { color: var(--ink-faint); }
-.studio-prose blockquote { margin: 1.4em 0; padding: 0.05em 0 0.05em 1.1em; border-left: 2px solid var(--gold); font-style: italic; color: var(--ink-soft); }
+.studio-prose li::marker { color: var(--p-faint); }
+.studio-prose blockquote { margin: 1.4em 0; padding: 0.05em 0 0.05em 1.1em; border-left: 3px solid var(--p-accent); color: var(--p-soft); }
 .studio-prose blockquote p { margin: 0 0 0.5em; }
-.studio-prose hr { border: 0; border-top: 1px solid var(--rule-strong); margin: 2.2em 0; }
-.studio-prose img { display: block; max-width: 100%; height: auto; margin: 1.5rem 0; border: 1px solid var(--rule-strong); border-radius: 3px; background: #fff; }
-.studio-prose code { font: 0.92em/1 "ET Book Lining", "ET Book", serif; font-variant-ligatures: none; background: var(--surface-2); border-radius: 3px; padding: 0.1em 0.3em; }
-.studio-table { margin: 1.5em 0; overflow-x: auto; }
-.studio-prose table { width: 100%; border-collapse: collapse; font-size: 1rem; line-height: 1.4; }
-.studio-prose th { text-align: left; font-weight: 700; padding: 0.4rem 0.7rem 0.4rem 0; border-bottom: 1px solid var(--ink); white-space: nowrap; }
-.studio-prose td { padding: 0.45rem 0.7rem 0.45rem 0; border-bottom: 1px solid var(--rule); vertical-align: top; }
+.studio-prose hr { border: 0; border-top: 1px solid var(--p-rule-strong); margin: 2.2em 0; }
+.studio-prose img { display: block; max-width: 100%; height: auto; margin: 1.8rem 0; background: none; border: 0; }
+.studio-prose code { font: 0.74em/1.4 var(--p-mono); font-variant-ligatures: none; background: var(--p-chip); border-radius: 4px; padding: 0.12em 0.36em; overflow-wrap: anywhere; }
+.studio-prose .code-caption { margin: 1.5rem 0 0.25rem; font: 0.62em/1.4 var(--p-mono); color: var(--p-faint); }
+.studio-table { margin: 1.6em 0; overflow-x: auto; }
+.studio-prose table { width: 100%; border-collapse: collapse; font-family: "ET Book Lining", "ET Book", serif; font-size: 0.92em; line-height: 1.45; font-variant-numeric: lining-nums tabular-nums; }
+.studio-prose th { text-align: left; font-family: "Virgil", "ET Book", cursive; font-weight: 400; padding: 0.5rem 1rem 0.55rem 0.7rem; border-bottom: 1.5px solid var(--p-ink); vertical-align: bottom; }
+.studio-prose td { padding: 0.55rem 1rem 0.55rem 0.7rem; border-bottom: 1px solid var(--p-rule); vertical-align: top; }
+.studio-prose td:first-child, .studio-prose th:first-child { white-space: nowrap; }
 
-.studio-code { margin: 1.5em 0; border-radius: 4px; background: var(--surface-2); overflow: hidden; }
-.studio-code-bar { display: flex; align-items: center; justify-content: space-between; padding: 0.3rem 0.8rem; border-bottom: 1px solid var(--rule); font: 0.85rem/1.2 "ET Book Lining", "ET Book", serif; color: var(--ink-faint); }
-.studio-code-bar select { background: transparent; border: 0; color: var(--ink-soft); font: inherit; cursor: pointer; padding: 0.1rem 0.2rem; }
-.studio-code-bar button { background: transparent; border: 0; color: var(--ink-faint); font: inherit; cursor: pointer; display: inline-flex; gap: 0.3rem; align-items: center; }
-.studio-code-bar button:hover { color: var(--gold); }
-.studio-code pre { margin: 0; padding: 0.9rem 1.1rem; overflow-x: auto; font: 1.02rem/1.5 "ET Book Lining", "ET Book", serif; font-variant-ligatures: none; white-space: pre; tab-size: 4; }
-.studio-code pre code { background: none; padding: 0; font: inherit; border-radius: 0; }
+.studio-code { margin: 0 0 1.5em; border-radius: 0 4px 4px 0; background: var(--p-paper); border-left: 3px solid #a5d8ff; overflow: hidden; }
+.studio-code.captioned { border-left-color: #ffc078; }
+.studio-code-bar { display: flex; align-items: center; justify-content: space-between; padding: 0.3rem 0.8rem; border-bottom: 1px solid var(--p-rule); font: 0.85rem/1.2 "ET Book Lining", "ET Book", serif; color: var(--p-faint); }
+.studio-code-bar select { background: transparent; border: 0; color: var(--p-soft); font: inherit; cursor: pointer; padding: 0.1rem 0.2rem; }
+.studio-code-bar button { background: transparent; border: 0; color: var(--p-faint); font: inherit; cursor: pointer; display: inline-flex; gap: 0.3rem; align-items: center; }
+.studio-code-bar button:hover { color: var(--p-accent); }
+.studio-code pre { margin: 0; padding: 0.9rem 1.1rem; overflow-x: auto; font: 0.68em/1.55 var(--p-mono); font-variant-ligatures: none; white-space: pre; tab-size: 4; }
+.studio-code pre code { background: none; padding: 0; font: inherit; border-radius: 0; overflow-wrap: normal; }
 
-.studio-prose .hljs-comment, .studio-prose .hljs-quote { color: var(--ink-faint); font-style: italic; }
-.studio-prose .hljs-keyword, .studio-prose .hljs-selector-tag, .studio-prose .hljs-literal, .studio-prose .hljs-doctag, .studio-prose .hljs-section { color: var(--gold); font-weight: 700; }
-.studio-prose .hljs-type, .studio-prose .hljs-built_in, .studio-prose .hljs-title.class_ { color: #6b4fa8; }
-.studio-prose .hljs-string, .studio-prose .hljs-regexp, .studio-prose .hljs-addition { color: #3f6f36; }
-.studio-prose .hljs-number, .studio-prose .hljs-symbol, .studio-prose .hljs-bullet { color: #6b4fa8; }
-.studio-prose .hljs-title, .studio-prose .hljs-title.function_, .studio-prose .hljs-meta, .studio-prose .hljs-meta .hljs-keyword, .studio-prose .hljs-deletion { color: #9c4436; }
-.studio-prose .hljs-attr, .studio-prose .hljs-attribute, .studio-prose .hljs-variable, .studio-prose .hljs-template-variable, .studio-prose .hljs-property { color: var(--ink-soft); }
+.studio-prose .hljs-comment, .studio-prose .hljs-quote { color: var(--p-faint); }
+.studio-prose .hljs-keyword, .studio-prose .hljs-selector-tag, .studio-prose .hljs-literal, .studio-prose .hljs-doctag, .studio-prose .hljs-section { color: #1971c2; }
+.studio-prose .hljs-type, .studio-prose .hljs-built_in, .studio-prose .hljs-title.class_ { color: #1971c2; }
+.studio-prose .hljs-string, .studio-prose .hljs-regexp, .studio-prose .hljs-addition { color: #2f9e44; }
+.studio-prose .hljs-number, .studio-prose .hljs-symbol, .studio-prose .hljs-bullet { color: #e8590c; }
+.studio-prose .hljs-title, .studio-prose .hljs-title.function_, .studio-prose .hljs-meta, .studio-prose .hljs-meta .hljs-keyword, .studio-prose .hljs-deletion { color: #7048e8; }
+.studio-prose .hljs-attr, .studio-prose .hljs-attribute, .studio-prose .hljs-variable, .studio-prose .hljs-template-variable, .studio-prose .hljs-property { color: var(--p-soft); }
+
+@media (max-width: 600px) {
+  .studio-prose { font-size: 1.12rem; }
+  .studio-prose h1 { font-size: 1.75rem; }
+}

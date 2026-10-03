@@ -6,8 +6,9 @@ import remarkGfm from "remark-gfm";
 import { Check, Copy } from "lucide-react";
 import { fencedBlocks, highlight, LANGS, normalizeLang, type Lang } from "@/lib/studio/convert";
 import { SITE } from "@/lib/studio/publish";
+import { CAPTION_MARK } from "@/lib/blog-caption";
 
-function CodeBlock({ code, lang, onLang }: { code: string; lang: Lang; onLang: (lang: Lang) => void }) {
+function CodeBlock({ code, lang, captioned, onLang }: { code: string; lang: Lang; captioned: boolean; onLang: (lang: Lang) => void }) {
   const [copied, setCopied] = useState(false);
   const html = useMemo(() => highlight(code, lang), [code, lang]);
 
@@ -18,7 +19,7 @@ function CodeBlock({ code, lang, onLang }: { code: string; lang: Lang; onLang: (
   };
 
   return (
-    <div className="studio-code">
+    <div className={captioned ? "studio-code captioned" : "studio-code"}>
       <div className="studio-code-bar">
         <select value={lang} onChange={(e) => onLang(e.target.value as Lang)} aria-label="language">
           {LANGS.map((l) => (
@@ -45,7 +46,17 @@ interface Props {
 }
 
 export default function Preview({ markdown, title, byline, images, onLang }: Props) {
-  const blocks = useMemo(() => fencedBlocks(markdown), [markdown]);
+  // "slope.py" over "{: .code-caption }" is a caption on the blog. here it becomes a marked paragraph,
+  // which keeps the fenced blocks in the same order so the language picker still finds its block
+  const shown = useMemo(() => markdown.replace(/^(.+)\n\{: \.code-caption \}$/gm, `${CAPTION_MARK}$1\n`), [markdown]);
+  const blocks = useMemo(() => fencedBlocks(shown), [shown]);
+  const lines = useMemo(() => shown.split("\n"), [shown]);
+  const captionedAt = (line?: number) => {
+    if (!line) return false;
+    let i = line - 2;
+    while (i >= 0 && !lines[i].trim()) i--;
+    return i >= 0 && lines[i].startsWith(CAPTION_MARK);
+  };
 
   return (
     <div className="studio-prose">
@@ -61,7 +72,15 @@ export default function Preview({ markdown, title, byline, images, onLang }: Pro
             const code = String(child?.props?.children ?? "").replace(/\n$/, "");
             const line = node?.position?.start.line;
             const index = blocks.findIndex((b) => b.line === line);
-            return <CodeBlock code={code} lang={lang} onLang={(l) => index >= 0 && onLang(index, l)} />;
+            return <CodeBlock code={code} lang={lang} captioned={captionedAt(line)} onLang={(l) => index >= 0 && onLang(index, l)} />;
+          },
+          p: ({ children }) => {
+            const kids = React.Children.toArray(children);
+            const first = kids[0];
+            if (typeof first === "string" && first.startsWith(CAPTION_MARK)) {
+              return <p className="code-caption">{first.slice(CAPTION_MARK.length)}{kids.slice(1)}</p>;
+            }
+            return <p>{children}</p>;
           },
           img: ({ src, alt }) => {
             const own = typeof src === "string" ? src : "";
@@ -78,7 +97,7 @@ export default function Preview({ markdown, title, byline, images, onLang }: Pro
           ),
         }}
       >
-        {markdown}
+        {shown}
       </ReactMarkdown>
     </div>
   );

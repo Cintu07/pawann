@@ -1,0 +1,10 @@
+virgil.woff2
+  Virgil, the hand-drawn face from excalidraw (github.com/excalidraw/excalidraw).
+  Licensed under the SIL Open Font License, Version 1.1.
+
+cascadia-code.woff2
+  Cascadia Code, from microsoft (github.com/microsoft/cascadia-code).
+  Copyright (c) 2019 Microsoft Corporation, with Reserved Font Name 'Cascadia Code'.
+  Licensed under the SIL Open Font License, Version 1.1.
+
+The full text of the license is at https://openfontlicense.org/open-font-license-official-text/

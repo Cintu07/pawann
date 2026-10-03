@@ -380,11 +380,21 @@ export interface Meta {
   cover?: string;
 }
 
+/** a diagram lifted out of a web page, to be saved as its own svg file */
+export interface Figure {
+  name: string;
+  content: string;
+}
+
 export interface ConvertResult {
   markdown: string;
   kind: "markdown" | "text" | "code" | "html";
   meta: Meta;
   report: string[];
+  /** set when a whole web page became a post: its diagrams, already referenced from the markdown */
+  figures?: Figure[];
+  /** the input was a whole web page, so title, date and tags came from it and the draft should be replaced */
+  document?: boolean;
 }
 
 export interface ConvertOptions {
@@ -596,11 +606,7 @@ export function toMarkdown(input: string, opts: ConvertOptions = {}): ConvertRes
   const report: string[] = [];
 
   const ext = opts.filename?.split(".").pop()?.toLowerCase();
-  if (ext === "html" || ext === "htm") {
-    const md = htmlToMarkdown(text, opts.parseHtml);
-    const inner = normalizeMarkdown(md, { strict: true });
-    return { markdown: inner.markdown.trim() + "\n", kind: "html", meta: {}, report: ["converted html to markdown", ...inner.report] };
-  }
+  if (ext === "html" || ext === "htm") return importHtml(text, opts);
 
   const fileLang = languageForFilename(opts.filename) ?? normalizeLang(opts.hint);
   if (fileLang && fileLang !== "text" && !(ext === "md" || ext === "markdown" || ext === "txt")) {
@@ -652,13 +658,43 @@ function defaultParse(html: string): Document {
 function langFromClass(el: Element | null): string | null {
   if (!el) return null;
   const cls = `${el.getAttribute("class") ?? ""} ${el.getAttribute("data-language") ?? ""} ${el.getAttribute("data-lang") ?? ""}`;
-  const m = /(?:language|lang|highlight-source|brush:)[-\s]?([\w+#.-]+)/i.exec(cls) ?? /\bhljs\s+([\w+#-]+)/.exec(cls);
+  // pandoc writes <pre class="sourceCode python">
+  const pandoc = /\bsourceCode\s+([\w+#-]+)/.exec(cls);
+  if (pandoc) return pandoc[1];
+  const m =/(?:language|lang|highlight-source|brush:)[-\s]?([\w+#.-]+)/i.exec(cls) ?? /\bhljs\s+([\w+#-]+)/.exec(cls);
   return m ? m[1] : null;
 }
 
-export function htmlToMarkdown(html: string, parse: (h: string) => Document = defaultParse): string {
-  const doc = parse(html);
-  const root = doc.body ?? (doc as unknown as { documentElement: Element }).documentElement;
+export interface HtmlOptions {
+  /** the input is a whole page: skip its title, lift the first paragraph into a standfirst, escape prose, label bare code */
+  document?: boolean;
+  /** the page's title, so a first heading that repeats it is left out of the body */
+  title?: string;
+  /** called with each inline <svg> and returns the markdown that stands in for it */
+  onSvg?: (svg: string) => string;
+}
+
+export function htmlToMarkdown(html: string, parse: (h: string) => Document = defaultParse, opts: HtmlOptions = {}): string {
+  return docToMarkdown(parse(html), opts);
+}
+
+const escapeMd = (s: string) => s.replace(/([\\`*_[\]])/g, "\\$1").replace(/</g, "&lt;");
+const collapse = (s: string | null | undefined) => (s ?? "").replace(/\s+/g, " ").trim();
+
+/** the caption of a listing: a short label sitting right above a code block, such as "slope.py" */
+const CAPTION_CLASS = /(^|[\s_-])(cap|caption|filename|file-name|code-title|code-caption)([\s_-]|$)/i;
+
+function svgSource(el: Element): string {
+  let svg = el.outerHTML;
+  if (!/^<svg\b[^>]*\sxmlns=/.test(svg)) svg = svg.replace(/^<svg\b/, '<svg xmlns="http://www.w3.org/2000/svg"');
+  return svg.replace(/^<svg\b([^>]*?)\sviewbox=/, "<svg$1 viewBox=");
+}
+
+export function docToMarkdown(doc: Document, opts: HtmlOptions = {}): string {
+  const body = doc.body ?? (doc as unknown as { documentElement: Element }).documentElement;
+  const root = opts.document ? (body.querySelector("article, main, [role=main]") ?? body) : body;
+  let leadOpen = Boolean(opts.document);
+  let titleSkipped = false;
 
   const text = (n: Node): string => (n.textContent ?? "");
 
@@ -681,7 +717,10 @@ export function htmlToMarkdown(html: string, parse: (h: string) => Document = de
   };
 
   const inline = (n: Node): string => {
-    if (n.nodeType === 3) return (n.textContent ?? "").replace(/\s+/g, " ");
+    if (n.nodeType === 3) {
+      const t = (n.textContent ?? "").replace(/\s+/g, " ");
+      return opts.document ? escapeMd(t) : t;
+    }
     if (n.nodeType !== 1) return "";
     const el = n as Element;
     const tag = el.tagName.toUpperCase();
@@ -776,7 +815,22 @@ export function htmlToMarkdown(html: string, parse: (h: string) => Document = de
     const lang = langFromClass(code) ?? langFromClass(pre) ?? langFromClass(pre.parentElement) ?? headers.get(pre) ?? null;
     const body = codeText(code ?? pre);
     const known = normalizeLang(lang);
-    return `\n\n${fence(body, known ?? (lang ? (lang as Lang) : ""))}\n\n`;
+    // a page that marks its code but not what language it is, usually output, gets plain text
+    return `\n\n${fence(body, known ?? (lang ? (lang as Lang) : opts.document ? "text" : ""))}\n\n`;
+  };
+
+  const hasBlock = (el: Element): boolean =>
+    Boolean(opts.onSvg && el.querySelector("svg")) || Array.from(el.querySelectorAll("*")).some((d) => BLOCK_TAGS.has(d.tagName.toUpperCase()));
+
+  /** "slope.py" above a listing: kept as a caption the blog styles, not as a stray paragraph */
+  const caption = (el: Element): string | null => {
+    const next = el.nextElementSibling;
+    if (!next || !CAPTION_CLASS.test(el.getAttribute("class") ?? "")) return null;
+    const nextTag = next.tagName.toUpperCase();
+    const codeNext = nextTag === "PRE" || (nextTag === "DIV" && next.firstElementChild?.tagName.toUpperCase() === "PRE");
+    const label = collapse(text(el));
+    if (!codeNext || !label || label.length > 100 || hasBlock(el)) return null;
+    return `\n\n${escapeMd(label)}\n{: .code-caption }\n\n`;
   };
 
   const blocks = (n: Node): string => {
@@ -784,14 +838,35 @@ export function htmlToMarkdown(html: string, parse: (h: string) => Document = de
     if (n.nodeType !== 1) return "";
     const el = n as Element;
     const tag = el.tagName.toUpperCase();
+    if (tag === "SVG" && opts.onSvg) {
+      leadOpen = false;
+      return `\n\n${opts.onSvg(svgSource(el))}\n\n`;
+    }
     if (SKIP_TAGS.has(tag) || consumed.has(el)) return "";
+    if (leadOpen && /^(PRE|UL|OL|TABLE|BLOCKQUOTE|H[2-6])$/.test(tag)) leadOpen = false;
     const children = () => Array.from(el.childNodes).map(blocks).join("");
     switch (tag) {
       case "H1": case "H2": case "H3": case "H4": case "H5": case "H6": {
         const t = inline(el).replace(/\s+/g, " ").trim();
+        if (tag === "H1" && opts.document && !titleSkipped) {
+          titleSkipped = true;
+          if (!opts.title || collapse(text(el)).toLowerCase() === opts.title.toLowerCase()) return "";
+        }
         return t ? `\n\n${"#".repeat(Number(tag[1]))} ${t}\n\n` : "";
       }
-      case "P": { const t = inline(el).trim(); return t ? `\n\n${t}\n\n` : ""; }
+      case "P": {
+        const label = caption(el);
+        if (label) return label;
+        const t = inline(el).trim();
+        if (!t) return "";
+        // the first paragraph of a post is its standfirst
+        if (leadOpen) {
+          leadOpen = false;
+          if (collapse(text(el)).length >= 50) return `\n\n> ${t}\n\n`;
+        }
+        // a paragraph that happens to start like markdown must not turn into a heading or a list
+        return `\n\n${opts.document ? t.replace(/^(#{1,6} |> |[-+] |\d+[.)] )/, "\\$1") : t}\n\n`;
+      }
       case "PRE": return codeBlock(el);
       case "UL": case "OL": return `\n\n${list(el, 0)}\n\n`;
       case "BLOCKQUOTE": return `\n\n${children().trim().split("\n").map((l) => (l ? `> ${l}` : ">")).join("\n")}\n\n`;
@@ -801,18 +876,82 @@ export function htmlToMarkdown(html: string, parse: (h: string) => Document = de
       case "BR": return "  \n";
       case "BODY": case "HTML": return children();
       case "DIV": case "SECTION": case "ARTICLE": case "MAIN": case "HEADER": case "FOOTER": case "ASIDE": case "NAV": case "LI": {
-        const hasBlock = Array.from(el.querySelectorAll("*")).some((d) => BLOCK_TAGS.has(d.tagName.toUpperCase()));
-        if (hasBlock) return `\n\n${children()}\n\n`;
+        const label = caption(el);
+        if (label) return label;
+        if (hasBlock(el)) return `\n\n${children()}\n\n`;
         const t = inline(el).trim();
         return t ? `\n\n${t}\n\n` : "";
       }
-      default: {
-        const hasBlock = Array.from(el.querySelectorAll("*")).some((d) => BLOCK_TAGS.has(d.tagName.toUpperCase()));
-        return hasBlock ? children() : inline(el);
-      }
+      default: return hasBlock(el) ? children() : inline(el);
     }
   };
 
   const md = blocks(root).replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
   return md + "\n";
+}
+
+// --------------------------------------------------------------- whole pages
+
+/** title, summary, date and tags as a page declares them */
+export function documentMeta(doc: Document): Meta {
+  const content = (sel: string) => collapse(doc.querySelector(sel)?.getAttribute("content")) || undefined;
+  const meta: Meta = {};
+  const title = collapse(doc.querySelector("title")?.textContent) || collapse(doc.querySelector("h1")?.textContent);
+  if (title) meta.title = title;
+  const description = content('meta[name="description"]') ?? content('meta[property="og:description"]');
+  if (description) meta.description = description;
+  const when = content('meta[name="date"]') ?? content('meta[property="article:published_time"]') ?? doc.querySelector("time[datetime]")?.getAttribute("datetime") ?? "";
+  const day = /^\d{4}-\d{2}-\d{2}/.exec(when)?.[0];
+  if (day) meta.date = day;
+  const keywords = content('meta[name="keywords"]');
+  if (keywords) meta.tags = keywords.split(",").map((t) => t.trim()).filter(Boolean);
+  return meta;
+}
+
+/** the first few words of the title, to name the diagrams after */
+function figureStem(title?: string): string {
+  const words = (title ?? "").toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g, "").split(/[^a-z0-9]+/).filter(Boolean);
+  return words.slice(0, 4).join("-") || "post";
+}
+
+/** true when pasted text is the source of a whole web page rather than a snippet of html */
+export function looksLikeHtmlDocument(text: string): boolean {
+  const head = text.slice(0, 2000);
+  return /^\s*(<!doctype\s+html|<html[\s>])/i.test(head) || (text.length > 4000 && /<body[\s>]/i.test(head + text.slice(-2000)) && /<\/(body|article|main)>/i.test(text.slice(-2000)));
+}
+
+function importHtml(html: string, opts: ConvertOptions): ConvertResult {
+  const doc = (opts.parseHtml ?? defaultParse)(html);
+  const meta = opts.fragment ? {} : documentMeta(doc);
+
+  if (!meta.title) {
+    const inner = normalizeMarkdown(docToMarkdown(doc), { strict: true });
+    return { markdown: inner.markdown.trim() + "\n", kind: "html", meta: {}, report: ["converted html to markdown", ...inner.report] };
+  }
+
+  const stem = figureStem(meta.title);
+  const figures: Figure[] = [];
+  const md = docToMarkdown(doc, {
+    document: true,
+    title: meta.title,
+    onSvg: (svg) => {
+      const name = `${stem}-fig-${figures.length + 1}.svg`;
+      figures.push({ name, content: svg.trim() + "\n" });
+      return `![](/assets/img/${name})`;
+    },
+  });
+  const inner = normalizeMarkdown(md, { strict: true });
+  const markdown = inner.markdown.trim() + "\n";
+
+  const code = fencedBlocks(markdown).length;
+  const tables = (markdown.match(/^\| -{3}/gm) ?? []).length;
+  const captions = (markdown.match(/^\{: \.code-caption \}$/gm) ?? []).length;
+  const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+  const report = [
+    `read a whole page as a post: "${meta.title}"`,
+    [figures.length && `${plural(figures.length, "diagram")} saved as svg files`, code && plural(code, "code block"), captions && plural(captions, "listing caption"), tables && plural(tables, "table")]
+      .filter(Boolean).join(", "),
+    ...inner.report,
+  ].filter(Boolean) as string[];
+  return { markdown, kind: "html", meta, report, figures, document: true };
 }

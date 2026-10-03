@@ -25,6 +25,13 @@ export function slugify(text: string): string {
     .replace(/-+$/g, "");
 }
 
+/** a url for a title: "gradient descent is one line of code. here is everything it hides." becomes the part before the first sentence break */
+export function slugFromTitle(title: string): string {
+  const lead = title.split(/[.:?!]\s+|\s+[-–—]\s+/)[0];
+  const short = lead.trim().split(/\s+/).length >= 3 && lead.trim().length >= 14 ? lead : title;
+  return slugify(short).slice(0, 60).replace(/-+$/g, "");
+}
+
 export function today(): string {
   const d = new Date();
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -39,7 +46,12 @@ function plain(md: string): string {
   return md
     .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
     .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
-    .replace(/[*_`~]+/g, "")
+    // code keeps its text, asterisks and all; only emphasis markers go
+    .replace(/`([^`]*)`/g, "$1")
+    .replace(/(\*\*|__)(?=\S)(.+?)(?<=\S)\1/g, "$2")
+    .replace(/(^|[\s(])([*_])(?=\S)(.+?)(?<=\S)\2(?=[\s).,;:!?]|$)/g, "$1$3")
+    .replace(/\\([\\`*_[\]])/g, "$1")
+    .replace(/~~/g, "")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -47,9 +59,12 @@ function plain(md: string): string {
 /** the first paragraph that is plain prose, cut at a sentence or a word */
 export function describe(markdown: string, max = 160): string {
   const paragraphs = markdown.split(/\n{2,}/);
-  for (const p of paragraphs) {
+  // a post that opens with a standfirst has already summed itself up
+  const first = paragraphs.find((p) => p.trim() && !/^#\s/.test(p.trim()));
+  const lead = first && /^>\s/.test(first.trim()) ? [first.trim().replace(/^>\s?/gm, "")] : [];
+  for (const p of [...lead, ...paragraphs]) {
     const t = p.trim();
-    if (!t || /^(#|>|```|~~~|!\[|[-*+]\s|\d+[.)]\s|\||<)/.test(t)) continue;
+    if (!t || (!lead.includes(p) && /^(#|>|```|~~~|!\[|[-*+]\s|\d+[.)]\s|\||<)/.test(t))) continue;
     const text = plain(t);
     if (text.length < 20) continue;
     if (text.length <= max) return text;

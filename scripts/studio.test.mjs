@@ -182,7 +182,8 @@ test("fence grows when the code contains backticks", () => {
 
 // ---------------------------------------------------------------- post.ts
 
-import { slugify, describe, buildPostFile, extractSvgs, referencedImages, suggestTags, stripLeadingTitle } from "../src/lib/studio/post.ts";
+import { slugify, slugFromTitle, describe, buildPostFile, extractSvgs, referencedImages, suggestTags, stripLeadingTitle } from "../src/lib/studio/post.ts";
+import { looksLikeHtmlDocument } from "../src/lib/studio/convert.ts";
 import { commitFiles, waitForDeploy, fileExists } from "../src/lib/studio/publish.ts";
 
 test("slugify", () => {
@@ -308,4 +309,108 @@ test("readText decodes the file and treats 404 as missing", async () => {
   assert.equal(await readText({ token: "t" }, "content/books.json", ok), '[{"title":"héllo"}]');
   const missing = async () => new Response('{"message":"Not Found"}', { status: 404 });
   assert.equal(await readText({ token: "t" }, "content/books.json", missing), null);
+});
+
+// ---------------------------------------------------------------- a whole web page becomes a post
+
+const fullPage = (body, head = "") => `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>gradient
+descent is one line of code. here is everything that line hides.</title>${head}</head><body>${body}</body></html>`;
+const parseFull = (html) => parseHTML(html).document;
+const parseAny = (html) => parseHTML(html).document;
+
+const PAGE = fullPage(`<article class="post"><h1 id="x">gradient
+descent is one line of code. here is everything that line hides.</h1>
+<p>almost every neural network you have used was trained by some version of <code>w = w - lr * slope</code>. this post builds that line from nothing.</p>
+<h2 id="a">the problem: a number you can't solve for</h2>
+<p>the <strong>slope</strong> of <code>f</code> is snake_case and 2 * 3 * 4 and a [bracket] and 1 &lt; 2.</p>
+<div class="listing-cap">
+slope.py
+</div>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> f(w):</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> (w <span class="op">-</span> <span class="dv">3</span>) <span class="op">**</span> <span class="dv">2</span></span></code></pre></div>
+<div class="listing-cap">
+output of slope.py, pasted unchanged
+</div>
+<pre><code>   h      error
+1e-01    1.0e-01</code></pre>
+<div class="figure">
+<svg viewBox="0 0 680 100" xmlns="http://www.w3.org/2000/svg"><g><path d="M0 0L10 10"/></g></svg>
+</div>
+<table><colgroup><col style="width: 50%" /><col style="width: 50%" /></colgroup>
+<thead><tr class="header"><th>lr</th><th>what <code>1 - 2 * lr</code></th></tr></thead>
+<tbody><tr class="odd"><td>0.01</td><td>creeps</td></tr></tbody></table>
+<p>second figure follows.</p>
+<div class="figure"><svg viewBox="0 0 10 10"><rect width="5" height="5"/></svg></div>
+</article>`);
+
+test("a whole page becomes a finished post: title, standfirst, captions, languages, table", () => {
+  const r = toMarkdown(PAGE, { filename: "gd.html", parseHtml: parseFull });
+  assert.equal(r.document, true);
+  assert.equal(r.meta.title, "gradient descent is one line of code. here is everything that line hides.");
+  // the title lives in the fields, not twice in the body, and the first paragraph leads as a standfirst
+  assert.ok(!/^# /m.test(r.markdown));
+  assert.match(r.markdown, /^> almost every neural network you have used was trained by some version of `w = w - lr \* slope`\./);
+  assert.match(r.markdown, /\n## the problem: a number you can't solve for\n/);
+  // prose that looks like markdown is escaped, code is not
+  assert.ok(r.markdown.includes("snake\\_case and 2 \\* 3 \\* 4 and a \\[bracket\\] and 1 &lt; 2"), r.markdown);
+  // a listing's label stays a caption, and pandoc's language class is read
+  assert.match(r.markdown, /\nslope\.py\n\{: \.code-caption \}\n\n```python\ndef f\(w\):\n    return \(w - 3\) \*\* 2\n```/);
+  // output with no language is text, not a guess
+  assert.match(r.markdown, /\noutput of slope\.py, pasted unchanged\n\{: \.code-caption \}\n\n```text\n {3}h {6}error\n1e-01 {4}1\.0e-01\n```/);
+  assert.match(r.markdown, /\| lr \| what `1 - 2 \* lr` \|\n\| --- \| --- \|\n\| 0\.01 \| creeps \|/);
+  assert.ok(!/<svg|<table|<div|class=/.test(r.markdown));
+});
+
+test("diagrams in a page are saved as svg files and linked", () => {
+  const r = toMarkdown(PAGE, { filename: "gd.html", parseHtml: parseFull });
+  assert.deepEqual(r.figures.map((f) => f.name), ["gradient-descent-is-one-fig-1.svg", "gradient-descent-is-one-fig-2.svg"]);
+  assert.match(r.figures[0].content, /^<svg [^>]*xmlns="http:\/\/www\.w3\.org\/2000\/svg"/);
+  assert.match(r.figures[0].content, /viewBox="0 0 680 100"/);
+  assert.match(r.figures[1].content, /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg"/);
+  assert.deepEqual(referencedImages(r.markdown), ["gradient-descent-is-one-fig-1.svg", "gradient-descent-is-one-fig-2.svg"]);
+});
+
+test("a page's own description, date and tags are used", () => {
+  const html = fullPage("<article><h1>t</h1><p>body</p></article>", '<meta name="description" content="a short summary"><meta property="article:published_time" content="2026-09-01T10:00:00Z"><meta name="keywords" content="ml, optimization ,python">');
+  const r = toMarkdown(html, { filename: "p.html", parseHtml: parseFull });
+  assert.equal(r.meta.description, "a short summary");
+  assert.equal(r.meta.date, "2026-09-01");
+  assert.deepEqual(r.meta.tags, ["ml", "optimization", "python"]);
+});
+
+test("an html file with no title is still just converted into the draft", () => {
+  const r = toMarkdown("<html><body><h2>Hi</h2><p>x</p></body></html>", { filename: "a.html", parseHtml: parseAny });
+  assert.equal(r.document, undefined);
+  assert.match(r.markdown, /^## Hi/);
+});
+
+test("source pasted as text is recognised as a whole page", () => {
+  assert.equal(looksLikeHtmlDocument(PAGE), true);
+  assert.equal(looksLikeHtmlDocument("<!DOCTYPE html>\n<html>"), true);
+  assert.equal(looksLikeHtmlDocument("<p>just a snippet</p>"), false);
+  assert.equal(looksLikeHtmlDocument("fn main() {}"), false);
+  assert.equal(looksLikeHtmlDocument("some <html> talk in prose"), false);
+});
+
+test("a multi megabyte page converts quickly", () => {
+  const fontBlob = "A".repeat(2_000_000);
+  const svgs = Array.from({ length: 7 }, (_, i) => `<div class="figure"><svg viewBox="0 0 680 300">${'<path d="M0 0L1 1"/>'.repeat(4000)}</svg></div><p>between ${i}</p>`).join("");
+  const html = fullPage(`<article class="post"><h1>big</h1><p>${"word ".repeat(30)}</p>${svgs}</article>`, `<style>@font-face{src:url(data:font/woff2;base64,${fontBlob})}</style>`);
+  const t = Date.now();
+  const r = toMarkdown(html, { filename: "big.html", parseHtml: parseFull });
+  assert.equal(r.figures.length, 7);
+  assert.ok(r.markdown.length < 2000, String(r.markdown.length));
+  assert.ok(Date.now() - t < 5000, `took ${Date.now() - t}ms`);
+});
+
+test("a long title gets a short url", () => {
+  assert.equal(slugFromTitle("gradient descent is one line of code. here is everything that line hides."), "gradient-descent-is-one-line-of-code");
+  assert.equal(slugFromTitle("ciot: a cpu inference engine for ternary networks"), "ciot-a-cpu-inference-engine-for-ternary-networks");
+  assert.equal(slugFromTitle("Building a Membership System That Says \"I Don't Know\""), "building-a-membership-system-that-says-i-don-t-know");
+  assert.equal(slugFromTitle("Why? Because."), "why-because");
+});
+
+test("a post that opens with a standfirst is described by it", () => {
+  const d = describe("> almost every neural network you have used was trained by some version of `w = w - lr * slope`. this post builds that line from nothing.\n\n## the problem\n\nyou have a function that takes some numbers you are allowed to change.");
+  assert.equal(d, "almost every neural network you have used was trained by some version of w = w - lr * slope. this post builds that line from nothing.");
 });
