@@ -75,7 +75,7 @@ export default function BackgroundMusic() {
 
   return (
     <div className="fixed bottom-6 right-6 z-[60]">
-      <audio ref={audioRef} src="/bg-music.mp3" preload="auto" />
+      <audio ref={audioRef} src="/bg-music.mp3" preload="metadata" />
       
       <style>{`
         @keyframes bounce-bar {

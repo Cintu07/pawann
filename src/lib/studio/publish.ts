@@ -115,6 +115,8 @@ export interface BookEntry {
   pages?: number;
   cover?: string;
   pdf: string;
+  /** the .tgz the book was built from, offered as a second download */
+  code?: string;
 }
 
 /** adds a book to the list, or replaces the one with the same pdf */
@@ -132,21 +134,37 @@ export interface Committed {
   url: string;
 }
 
+/** runs `work` over the items a few at a time and keeps the results in order */
+async function inPool<T, R>(items: T[], limit: number, work: (item: T) => Promise<R>): Promise<R[]> {
+  const out = new Array<R>(items.length);
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await work(items[i]);
+    }
+  }));
+  return out;
+}
+
 export async function commitFiles(t: Target, message: string, files: PublishFile[], f: Fetch = fetch): Promise<Committed> {
   const { call, branch } = client(t, f);
+
+  // a blob does not depend on where the branch is, so every file goes up once, a few at a time,
+  // and a push race below costs a new commit and not another upload of a 30 MB bundle
+  const entries = await inPool(files, 4, async (file) => {
+    const blob = await call<{ sha: string }>("/git/blobs", {
+      method: "POST",
+      body: JSON.stringify({ content: toBase64(bytesOf(file.content)), encoding: "base64" }),
+    });
+    return { path: file.path, mode: "100644", type: "blob", sha: blob.sha };
+  });
+
   for (let attempt = 0; ; attempt++) {
     const ref = await call<{ object: { sha: string } }>(`/git/ref/heads/${branch}`);
     const parent = ref.object.sha;
     const commit = await call<{ tree: { sha: string } }>(`/git/commits/${parent}`);
 
-    const entries = [];
-    for (const file of files) {
-      const blob = await call<{ sha: string }>("/git/blobs", {
-        method: "POST",
-        body: JSON.stringify({ content: toBase64(bytesOf(file.content)), encoding: "base64" }),
-      });
-      entries.push({ path: file.path, mode: "100644", type: "blob", sha: blob.sha });
-    }
     const tree = await call<{ sha: string }>("/git/trees", {
       method: "POST",
       body: JSON.stringify({ base_tree: commit.tree.sha, tree: entries }),

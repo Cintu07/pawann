@@ -414,3 +414,172 @@ test("a post that opens with a standfirst is described by it", () => {
   const d = describe("> almost every neural network you have used was trained by some version of `w = w - lr * slope`. this post builds that line from nothing.\n\n## the problem\n\nyou have a function that takes some numbers you are allowed to change.");
   assert.equal(d, "almost every neural network you have used was trained by some version of w = w - lr * slope. this post builds that line from nothing.");
 });
+
+// ---------------------------------------------------------------- tgz bundles, pdf titles and preview sections
+
+import zlib from "node:zlib";
+import { listTar, readTgz, entryBytes, summarize, pdfTitle } from "../src/lib/studio/archive.ts";
+import { splitSections } from "../src/lib/studio/sections.ts";
+
+function tarHeader(name, size, type = "0") {
+  const h = Buffer.alloc(512);
+  h.write(name, 0, 100, "utf8");
+  h.write("0000644\0", 100);
+  h.write("0000000\0", 108);
+  h.write("0000000\0", 116);
+  h.write(size.toString(8).padStart(11, "0") + "\0", 124);
+  h.write("00000000000\0", 136);
+  h.write("        ", 148);
+  h.write(type, 156);
+  h.write("ustar\x0000", 257);
+  let sum = 0;
+  for (const b of h) sum += b;
+  h.write(sum.toString(8).padStart(6, "0") + "\0 ", 148);
+  return h;
+}
+const padTo512 = (b) => Buffer.concat([b, Buffer.alloc((512 - (b.length % 512)) % 512)]);
+
+/** entries: [name, content, { pax: "a very long path" }?] */
+function tarOf(entries) {
+  const parts = [];
+  for (const [name, data, opts = {}] of entries) {
+    const body = Buffer.from(data);
+    if (opts.pax) {
+      const rec = `path=${opts.pax}\n`;
+      let n = rec.length + 2;
+      while (String(n).length + 1 + rec.length !== n) n = String(n).length + 1 + rec.length;
+      const px = Buffer.from(`${n} ${rec}`);
+      parts.push(tarHeader("PaxHeader/x", px.length, "x"), padTo512(px));
+    }
+    parts.push(tarHeader(name, body.length, opts.type ?? "0"), padTo512(body));
+  }
+  parts.push(Buffer.alloc(1024));
+  return Buffer.concat(parts);
+}
+
+test("a tar is listed file by file, with directories skipped", () => {
+  const tar = tarOf([["module1/", "", { type: "5" }], ["module1/a.md", "hello"], ["module1/b.png", "x".repeat(700)]]);
+  const files = listTar(new Uint8Array(tar));
+  assert.deepEqual(files.map((f) => [f.name, f.size]), [["module1/a.md", 5], ["module1/b.png", 700]]);
+  assert.equal(Buffer.from(tar.subarray(files[0].start, files[0].start + 5)).toString(), "hello");
+});
+
+test("a path too long for the header comes from the pax record", () => {
+  const long = `module1/${"deep/".repeat(40)}chapter.md`;
+  const files = listTar(new Uint8Array(tarOf([["short", "body", { pax: long }], ["after.txt", "z"]])));
+  assert.deepEqual(files.map((f) => f.name), [long, "after.txt"]);
+});
+
+test("a .tgz is gunzipped from a blob and its files can be read back", async () => {
+  const tar = tarOf([["a/one.txt", "first"], ["a/two.pdf", "%PDF-1.7 fake"], ["a/big.pdf", "%PDF-1.7 " + "x".repeat(900)]]);
+  const bundle = await readTgz(new Blob([zlib.gzipSync(tar)]));
+  assert.equal(bundle.files.length, 3);
+  assert.equal(new TextDecoder().decode(entryBytes(bundle, bundle.files[0])), "first");
+  const info = summarize(bundle.files);
+  assert.equal(info.count, 3);
+  assert.equal(info.pdf.name, "a/big.pdf", "the biggest pdf is the book");
+  assert.equal(info.unpacked, 5 + 13 + 909);
+});
+
+test("something that is not a gzip is rejected, not half read", async () => {
+  await assert.rejects(readTgz(new Blob(["this is plain text, not a tgz"])));
+});
+
+test("a pdf's title is read from its document info, however it is written", async () => {
+  const pdf = (info) => new TextEncoder().encode(`%PDF-1.7\n1 0 obj\n<< ${info} /Producer (x) >>\nendobj\ntrailer\n<< /Info 1 0 R >>\n%%EOF\n`);
+  assert.equal(await pdfTitle(pdf("/Title (the first compiler)")), "the first compiler");
+  assert.equal(await pdfTitle(pdf("/Title <FEFF00680069002000E9>")), "hi é");
+  assert.equal(await pdfTitle(pdf("/Title (a \\(b\\) \\\\ c\\101)")), "a (b) \\ cA");
+  assert.equal(await pdfTitle(pdf("/Title ()")), null);
+  assert.equal(await pdfTitle(pdf("/Author (nobody)")), null);
+  assert.equal(await pdfTitle(new TextEncoder().encode("%PDF-1.7\n/Title (a bookmark)\n")), null, "no /Info, so no guess");
+});
+
+test("a title packed in a compressed object stream is found, and a bookmark's is not mistaken for it", async () => {
+  const objs = ["<< /Title (A bookmark) /Parent 3 0 R >>", "<< /Title (Real Title) /Producer (x) >>"];
+  const head = `7 0 9 ${objs[0].length} `;
+  const packed = zlib.deflateSync(Buffer.from(head + objs.join("")));
+  const file = Buffer.concat([
+    Buffer.from(`%PDF-1.7\n5 0 obj\n<< /Type /ObjStm /N 2 /First ${head.length} /Filter /FlateDecode /Length ${packed.length} >>\nstream\n`),
+    packed,
+    Buffer.from("\nendstream\nendobj\n6 0 obj\n<< /Type /XRef /Info 9 0 R /Root 1 0 R >>\nstartxref\n0\n%%EOF\n"),
+  ]);
+  assert.equal(await pdfTitle(new Uint8Array(file)), "Real Title");
+});
+
+const DOC = "intro\n\n# One\n\ntext\n\n```py\n# not a heading\nx = 1\n```\n\n## Two\n\n```\ncode\n```\n\nmore\n";
+
+test("sections are cut at headings, never inside a fence, and put back together exactly", () => {
+  const s = splitSections(DOC);
+  assert.equal(s.map((x) => x.text).join("\n"), DOC);
+  assert.equal(s.length, 3);
+  assert.ok(s[1].text.includes("# not a heading"), "a comment in code is not a heading");
+  assert.deepEqual(s.map((x) => x.fenceBase), [0, 0, 1]);
+});
+
+test("a long section is cut between plain paragraphs only, and a list is never split", () => {
+  const para = (n) => `paragraph ${n} ` + "word ".repeat(40);
+  const prose = Array.from({ length: 8 }, (_, i) => para(i)).join("\n\n");
+  const s = splitSections(prose, 600);
+  assert.ok(s.length > 2);
+  assert.equal(s.map((x) => x.text).join("\n"), prose);
+  assert.ok(s.every((x) => /^paragraph \d/.test(x.text)), "every cut lands on a paragraph start");
+
+  const list = "word ".repeat(200) + "\n\n- one\n\n- two\n\n- three\n\n1. a\n\n2. b\n\nafter " + "word ".repeat(10);
+  const t = splitSections(list, 100);
+  assert.equal(t.map((x) => x.text).join("\n"), list);
+  assert.ok(t.every((x) => !/^(- |\d\. )/.test(x.text)), "no section starts inside a list");
+  assert.ok(t.some((x) => x.text.includes("- one") && x.text.includes("- three") && x.text.includes("2. b")), "the list stays together");
+});
+
+test("a post with link definitions or footnotes stays in one piece", () => {
+  const md = "# A\n\ntext [x][1]\n\n# B\n\nmore\n\n[1]: https://example.com\n";
+  assert.equal(splitSections(md).length, 1);
+  assert.equal(splitSections("# A\n\nx[^1]\n\n# B\n\n[^1]: note\n").length, 1);
+});
+
+test("fence counts add up across sections, even with tildes and longer fences", () => {
+  const md = "# A\n\n~~~\n# in tildes\n~~~\n\n# B\n\n````md\n```\n# nested\n```\n````\n\n# C\n\n```\nlast\n```\n";
+  const s = splitSections(md);
+  assert.equal(s.length, 3);
+  assert.deepEqual(s.map((x) => x.fenceBase), [0, 1, 2]);
+  assert.equal(s.reduce((n, x) => n + fencedBlocks(x.text).length, 0), fencedBlocks(md).length);
+});
+
+// ---------------------------------------------------------------- uploads: parallel, in order, once
+
+test("files go up a few at a time, the tree keeps their order, and a push race does not upload them again", async () => {
+  let inFlight = 0;
+  let peak = 0;
+  let uploads = 0;
+  let refCalls = 0;
+  const posted = [];
+  const f = async (url, init = {}) => {
+    const path = url.replace("https://api.github.com/repos/Cintu07/Cintu07.github.io", "");
+    const ok = (data, status = 200) => new Response(JSON.stringify(data), { status });
+    if (path === "/git/blobs") {
+      uploads++;
+      inFlight++;
+      peak = Math.max(peak, inFlight);
+      // later files answer first, so a tree built in the order answers arrive in would be shuffled
+      const wait = 40 - uploads * 5;
+      await new Promise((r) => setTimeout(r, Math.max(wait, 1)));
+      inFlight--;
+      return ok({ sha: "blob-of-" + Buffer.from(JSON.parse(init.body).content, "base64").toString("utf8") });
+    }
+    if (path === "/git/ref/heads/main") return ok({ object: { sha: `head${++refCalls}` } });
+    if (path.startsWith("/git/commits/head")) return ok({ tree: { sha: "tree0" } });
+    if (path === "/git/trees") { posted.push(JSON.parse(init.body)); return ok({ sha: "tree1" }); }
+    if (path === "/git/commits") return ok({ sha: "newcommit", html_url: "u" });
+    if (path === "/git/refs/heads/main") return refCalls === 1 ? ok({ message: "not a fast forward" }, 422) : ok({});
+    return ok({ message: "unexpected " + path }, 500);
+  };
+  const files = ["a", "b", "c", "d", "e", "f", "g"].map((n) => ({ path: `assets/${n}.txt`, content: n }));
+  const out = await commitFiles({ token: "t" }, "m", files, f);
+  assert.equal(out.sha, "newcommit");
+  assert.ok(peak > 1, "more than one upload at a time");
+  assert.ok(peak <= 4, `no more than four at a time, saw ${peak}`);
+  assert.equal(uploads, 7, "seven files, seven uploads, even though the first push lost the race");
+  assert.equal(refCalls, 2, "and the race was retried from the new head");
+  assert.deepEqual(posted[0].tree.map((e) => [e.path, e.sha]), files.map((x) => [x.path, "blob-of-" + x.content]));
+});

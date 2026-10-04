@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ClipboardEvent, type DragEvent } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ChangeEvent, type ClipboardEvent, type DragEvent } from "react";
 import Link from "next/link";
 import { Bold, ChevronLeft, Code, Download, Heading2, Image as ImageIcon, Italic, Link as LinkIcon, Quote, Sparkles, Trash2, Upload, X, Copy, Check } from "lucide-react";
 import "./studio.css";
@@ -9,6 +9,7 @@ import { detectLanguage, fence, looksLikeHtmlDocument, parseFrontmatter, setFenc
 import { buildPostFile, describe, extractSvgs, IMAGE_DIR, readingMinutes, referencedImages, slugFromTitle, slugify, stripLeadingTitle, suggestTags, today } from "@/lib/studio/post";
 import { commitFiles, explain, fileExists, readText, SITE, upsertBook, waitForDeploy, whoami, type BookEntry, type PublishFile } from "@/lib/studio/publish";
 import { clearImages, loadImages, removeImage, saveImage } from "@/lib/studio/store";
+import { entryBytes, pdfTitle, readTgz, summarize } from "@/lib/studio/archive";
 
 const DRAFT_KEY = "pawan_studio_draft_v2";
 const OLD_DRAFT_KEY = "pawan_blog_draft";
@@ -38,6 +39,13 @@ interface Img {
 type Layout = "edit" | "split" | "preview";
 
 const isImage = (f: File) => f.type.startsWith("image/") || /\.(svg|png|jpe?g|gif|webp|avif)$/i.test(f.name);
+const isPdf = (f: File) => f.type === "application/pdf" || /\.pdf$/i.test(f.name);
+/** a source bundle: .tgz or .tar.gz */
+const isBundle = (f: File) => /\.(tgz|tar\.gz)$/i.test(f.name);
+const mb = (n: number) => `${(n / 1_000_000).toFixed(1)} mb`;
+const nameToTitle = (name: string) => name.replace(/\.(pdf|tgz|tar\.gz)$/i, "").replace(/[-_]+/g, " ");
+/** github refuses a file over 100 MB, and a push with one in it fails after the whole upload */
+const GITHUB_FILE_LIMIT = 95_000_000;
 
 function extensionFor(file: File): string {
   const fromName = /\.([a-z0-9]+)$/i.exec(file.name)?.[1]?.toLowerCase();
@@ -90,6 +98,7 @@ export default function ConverterClient() {
   const [kind, setKind] = useState<"post" | "book">("post");
   const [book, setBook] = useState({ title: "", subtitle: "", blurb: "", year: String(new Date().getFullYear()) });
   const [pdf, setPdf] = useState<File | null>(null);
+  const [code, setCode] = useState<File | null>(null);
 
   const ta = useRef<HTMLTextAreaElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -143,15 +152,20 @@ export default function ConverterClient() {
 
   // -------------------------------------------------------------- derived
 
-  const h1 = useMemo(() => /^#\s+(.+)$/m.exec(md)?.[1]?.trim() ?? "", [md]);
+  // typing only has to update the textarea. everything computed from the whole draft follows one beat behind,
+  // and on a long post that beat is what keeps the keys from feeling heavy
+  const lazy = useDeferredValue(md);
+  const h1 = useMemo(() => /^#\s+(.+)$/m.exec(lazy)?.[1]?.trim() ?? "", [lazy]);
   const title = f.title || h1;
   const slug = f.slugSet ? f.slug : slugFromTitle(title);
-  const description = f.descSet ? f.description : describe(stripLeadingTitle(md, title));
-  const tags = f.tagsSet ? f.tags : suggestTags(md).join(", ");
-  const words = md.trim() ? md.trim().split(/\s+/).length : 0;
-  const body = useMemo(() => stripLeadingTitle(md, title), [md, title]);
+  const body = useMemo(() => stripLeadingTitle(lazy, title), [lazy, title]);
+  const description = useMemo(() => (f.descSet ? f.description : describe(body)), [f.descSet, f.description, body]);
+  const autoTags = useMemo(() => suggestTags(lazy).join(", "), [lazy]);
+  const tags = f.tagsSet ? f.tags : autoTags;
+  const words = useMemo(() => (lazy.trim() ? lazy.trim().split(/\s+/).length : 0), [lazy]);
+  const minutes = useMemo(() => readingMinutes(lazy), [lazy]);
   const previewImages = useMemo(() => Object.fromEntries(Object.values(images).map((i) => [IMAGE_DIR + i.name, i.url])), [images]);
-  const byline = `${f.date || today()} · ${readingMinutes(md)} min read`;
+  const byline = `${f.date || today()} · ${minutes} min read`;
   const set = (patch: Partial<Fields>) => setF((p) => ({ ...p, ...patch }));
 
   // -------------------------------------------------------------- editing
@@ -269,7 +283,56 @@ export default function ConverterClient() {
     setReport([...res.report, `from ${source}, the draft is ready to publish`]);
   }, [addImages]);
 
-  const handleFiles = useCallback(async (files: File[], replace: boolean) => {
+  /** a pdf is a book and a .tgz is the source it was built from: both go to the publish panel, not into the draft */
+  const adoptBook = useCallback(async (pdfs: File[], bundles: File[]): Promise<string[]> => {
+    const notes: string[] = [];
+    let bookFile: File | null = pdfs[0] ?? null;
+    if (pdfs.length > 1) notes.push(`only ${pdfs[0].name} is used, ${pdfs.length - 1} more pdf${pdfs.length > 2 ? "s were" : " was"} skipped`);
+    const bundle = bundles[0];
+    if (bundles.length > 1) notes.push(`only ${bundle.name} is attached, ${bundles.length - 1} more bundle${bundles.length > 2 ? "s were" : " was"} skipped`);
+
+    if (bundle) {
+      try {
+        const unpacked = await readTgz(bundle);
+        const info = summarize(unpacked.files);
+        notes.push(`${bundle.name}: ${info.count} files, ${mb(info.unpacked)} unpacked, kept as the book's source download`);
+        if (!bookFile && info.pdf) {
+          const name = info.pdf.name.split("/").pop() ?? "book.pdf";
+          bookFile = new File([entryBytes(unpacked, info.pdf) as BlobPart], name, { type: "application/pdf" });
+          notes.push(`took ${name} out of the bundle as the book`);
+        }
+      } catch {
+        notes.push(`${bundle.name} did not open as a .tgz, it is still attached as it is`);
+      }
+      setCode(bundle);
+    }
+
+    if (bookFile) {
+      const chosen = bookFile;
+      setPdf(chosen);
+      const found = await pdfTitle(new Uint8Array(await chosen.arrayBuffer()));
+      setBook((b) => ({ ...b, title: b.title || found || nameToTitle(chosen.name) }));
+      notes.push(`book: ${chosen.name}, ${mb(chosen.size)}`);
+    } else {
+      notes.push("no pdf yet. add the book's pdf in the publish panel");
+    }
+    setKind("book");
+    setLog([]);
+    setLiveUrls([]);
+    setPanel(true);
+    return notes;
+  }, []);
+
+  const handleFiles = useCallback(async (dropped: File[], replace: boolean) => {
+    const books = dropped.filter(isPdf);
+    const bundles = dropped.filter(isBundle);
+    const bookNotes = books.length || bundles.length ? await adoptBook(books, bundles) : [];
+    const files = dropped.filter((x) => !isPdf(x) && !isBundle(x));
+    if (!files.length) {
+      setReport(bookNotes);
+      return;
+    }
+
     const pics = files.filter(isImage);
     const texts = files.filter((x) => !isImage(x));
     const names = await addImages(pics);
@@ -277,7 +340,7 @@ export default function ConverterClient() {
 
     if (!texts.length) {
       insertBlock(names.map(imageMarkdown).join("\n\n"));
-      setReport([`added ${names.length} image${names.length > 1 ? "s" : ""}`]);
+      setReport([...bookNotes, `added ${names.length} image${names.length > 1 ? "s" : ""}`]);
       return;
     }
     const file = texts[0];
@@ -310,8 +373,9 @@ export default function ConverterClient() {
       const b = el?.selectionEnd ?? md.length;
       insert(pad(md.slice(0, a), md.slice(b), out));
     }
-    setReport(notes.length ? notes : [`read ${file.name}, nothing needed fixing`]);
-  }, [addImages, adoptDocument, insert, insertBlock, md]);
+    const all = [...bookNotes, ...notes];
+    setReport(all.length ? all : [`read ${file.name}, nothing needed fixing`]);
+  }, [addImages, adoptBook, adoptDocument, insert, insertBlock, md]);
 
   const onPaste = async (e: ClipboardEvent<HTMLTextAreaElement>) => {
     const data = e.clipboardData;
@@ -365,7 +429,7 @@ export default function ConverterClient() {
     const files = Array.from(e.target.files ?? []);
     e.target.value = "";
     if (!files.length) return;
-    if (md.trim() && files.some((x) => !isImage(x)) && !confirm("replace the current draft with this file?")) return;
+    if (md.trim() && files.some((x) => !isImage(x) && !isPdf(x) && !isBundle(x)) && !confirm("replace the current draft with this file?")) return;
     handleFiles(files, true);
   };
 
@@ -483,6 +547,9 @@ export default function ConverterClient() {
     if (!pdf) return say("pick the pdf first");
     if (!book.title.trim()) return say("the book needs a title");
     if (!token.trim()) return say("paste a github token first");
+    for (const [what, file] of [["pdf", pdf], ["source", code]] as const) {
+      if (file && file.size > GITHUB_FILE_LIMIT) return say(`the ${what} is ${mb(file.size)}. github refuses a file over 100 mb, so shrink it first`);
+    }
 
     setBusy(true);
     try {
@@ -491,25 +558,31 @@ export default function ConverterClient() {
       localStorage.setItem(TOKEN_KEY, token.trim());
 
       const name = `${slugify(book.title)}.pdf`;
+      const codeName = `${slugify(book.title)}-source.tgz`;
       const entry: BookEntry = {
         title: book.title.trim(),
         ...(book.subtitle.trim() ? { subtitle: book.subtitle.trim() } : {}),
         ...(book.blurb.trim() ? { blurb: book.blurb.trim() } : {}),
         ...(book.year.trim() ? { year: book.year.trim() } : {}),
         pdf: `/assets/books/${name}`,
+        ...(code ? { code: `/assets/books/${codeName}` } : {}),
       };
       const current = await readText(target, "content/books.json");
       const list = current ? (JSON.parse(current) as BookEntry[]) : [];
-      const replacing = list.some((b) => b.pdf === entry.pdf);
+      const previous = list.find((b) => b.pdf === entry.pdf);
+      const replacing = Boolean(previous);
+      // a book that is replaced keeps the source it already had, unless a new one came with it
+      if (!entry.code && previous?.code) entry.code = previous.code;
       if (replacing && !confirm(`${book.title} is already up. replace it?`)) {
         say("cancelled");
         return;
       }
       const files: PublishFile[] = [
         { path: `assets/books/${name}`, content: new Uint8Array(await pdf.arrayBuffer()) },
+        ...(code ? [{ path: `assets/books/${codeName}`, content: new Uint8Array(await code.arrayBuffer()) }] : []),
         { path: "content/books.json", content: `${JSON.stringify(upsertBook(list, entry), null, 2)}\n` },
       ];
-      say(`uploading ${name}, ${(pdf.size / 1_000_000).toFixed(1)} mb`);
+      say(`uploading ${name}, ${mb(pdf.size)}${code ? ` and ${codeName}, ${mb(code.size)}` : ""}`);
       const done = await commitFiles(target, `${replacing ? "update book" : "book"}: ${entry.title}`, files);
       say(`committed ${done.sha.slice(0, 7)}`);
       const result = await waitForDeploy(target, done.sha, say);
@@ -533,7 +606,8 @@ export default function ConverterClient() {
     await clearImages();
   };
 
-  const onLang = (index: number, lang: Lang) => setMd((m) => setFenceLang(m, index, lang));
+  // stable, so the preview's sections that did not change are not asked to render again
+  const onLang = useCallback((index: number, lang: Lang) => setMd((m) => setFenceLang(m, index, lang)), []);
 
   // --------------------------------------------------------------- render
 
@@ -566,7 +640,7 @@ export default function ConverterClient() {
         </div>
       </header>
 
-      <input ref={fileInput} type="file" multiple accept=".md,.markdown,.txt,.html,.htm,.rs,.go,.ts,.tsx,.js,.jsx,.py,.c,.h,.cpp,.hpp,.java,.sql,.sh,.json,.yaml,.yml,.toml,.css,image/*,.svg" className="hidden" onChange={onPick} />
+      <input ref={fileInput} type="file" multiple accept=".md,.markdown,.txt,.html,.htm,.rs,.go,.ts,.tsx,.js,.jsx,.py,.c,.h,.cpp,.hpp,.java,.sql,.sh,.json,.yaml,.yml,.toml,.css,image/*,.svg,.pdf,.tgz,.tar.gz" className="hidden" onChange={onPick} />
       <input ref={imageInput} type="file" multiple accept="image/*,.svg" className="hidden" onChange={onImagePick} />
 
       <main className={`flex-1 grid gap-0 ${layout === "split" ? "md:grid-cols-2" : "grid-cols-1"} min-h-0`}>
@@ -601,12 +675,12 @@ export default function ConverterClient() {
                 onChange={(e) => setMd(e.target.value)}
                 onPaste={onPaste}
                 spellCheck
-                placeholder={"paste anything. markdown, plain text, a web page, a chat answer, code, a screenshot.\ncode is found and fenced with its language. images are kept.\n\nor drop files here, a .md and its images together work.\n\na whole html page, even a huge one, becomes a finished post: paste its source or drop the .html file.\nthe title, intro, code, tables and every diagram are filled in for you."}
+                placeholder={"paste anything. markdown, plain text, a web page, a chat answer, code, a screenshot.\ncode is found and fenced with its language. images are kept.\n\nor drop files here, a .md and its images together work.\n\na whole html page, even a huge one, becomes a finished post: paste its source or drop the .html file.\nthe title, intro, code, tables and every diagram are filled in for you.\n\na .pdf becomes a book, and a .tgz is the source it was built from. drop them and the publish panel opens."}
                 className="flex-1 w-full resize-none bg-transparent p-4 sm:p-5 font-mono text-[13.5px] leading-[1.7] text-ink placeholder:text-ink-faint focus:outline-none"
               />
               {dragging && (
                 <div className="absolute inset-0 bg-bg/85 border-2 border-dashed border-gold flex items-center justify-center font-mono text-[13px] text-gold pointer-events-none">
-                  drop a file, or images
+                  drop a file, a pdf, a .tgz or images
                 </div>
               )}
             </div>
@@ -686,13 +760,29 @@ export default function ConverterClient() {
               <label className={`${field} flex items-center justify-between cursor-pointer`}>
                 <span className="truncate">{pdf ? pdf.name : "choose a pdf"}</span>
                 <span className="font-mono text-[11px] text-ink-faint">{pdf ? `${(pdf.size / 1_000_000).toFixed(1)} mb` : "browse"}</span>
-                <input type="file" accept="application/pdf,.pdf" className="hidden" onChange={(e) => {
+                <input type="file" accept="application/pdf,.pdf" className="hidden" onChange={async (e) => {
                   const file = e.target.files?.[0] ?? null;
                   setPdf(file);
-                  if (file && !book.title) setBook((b) => ({ ...b, title: file.name.replace(/\.pdf$/i, "").replace(/[-_]+/g, " ") }));
+                  if (file && !book.title) {
+                    const found = await pdfTitle(new Uint8Array(await file.arrayBuffer()));
+                    setBook((b) => ({ ...b, title: b.title || found || nameToTitle(file.name) }));
+                  }
                 }} />
               </label>
               <p className="font-mono text-[11px] text-ink-faint mt-1.5">the cover and page count come from the pdf itself.</p>
+            </div>
+            <div>
+              <label className={label}>the source, optional</label>
+              <label className={`${field} flex items-center justify-between cursor-pointer`}>
+                <span className="truncate">{code ? code.name : "choose a .tgz"}</span>
+                <span className="font-mono text-[11px] text-ink-faint">{code ? mb(code.size) : "browse"}</span>
+                <input type="file" accept=".tgz,.tar.gz,application/gzip,application/x-gzip" className="hidden" onChange={(e) => setCode(e.target.files?.[0] ?? null)} />
+              </label>
+              <p className="font-mono text-[11px] text-ink-faint mt-1.5">
+                {code
+                  ? <>a second download on the book&apos;s page. <button className="text-gold underline cursor-pointer" onClick={() => setCode(null)}>take it off</button></>
+                  : "the code the book was built from, offered as a second download."}
+              </p>
             </div>
             <div><label className={label}>title</label><input className={field} value={book.title} onChange={(e) => setBook({ ...book, title: e.target.value })} /></div>
             <div><label className={label}>subtitle</label><input className={field} value={book.subtitle} onChange={(e) => setBook({ ...book, subtitle: e.target.value })} /></div>
