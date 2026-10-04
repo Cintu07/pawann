@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { motion, useReducedMotion, type Variants, type Easing } from "framer-motion";
+import { motion, type Variants, type Easing } from "framer-motion";
 import { SiSpotify } from "react-icons/si";
 import useSWR from "swr";
 import ScrambleText from "@/components/ScrambleText";
@@ -59,45 +59,6 @@ function VisitorCount() {
   );
 }
 
-const stack = [
-  { label: "writes", items: ["rust", "go", "typescript"] },
-  { label: "works on", items: ["ml infra", "databases", "inference"] },
-];
-
-/** languages and focus areas as chips that drop in one after another once the name has settled */
-function Stack() {
-  const calm = useReducedMotion();
-  const list: Variants = { hidden: {}, visible: { transition: { staggerChildren: 0.06, delayChildren: 0.55 } } };
-  const drop: Variants = {
-    hidden: calm ? { opacity: 0 } : { opacity: 0, y: -10, scale: 0.94 },
-    visible: calm
-      ? { opacity: 1 }
-      : { opacity: 1, y: 0, scale: 1, transition: { type: "spring", stiffness: 420, damping: 24 } },
-  };
-
-  return (
-    <motion.div variants={list} className="mb-7 space-y-2.5">
-      {stack.map((row) => (
-        <div key={row.label} role="group" aria-label={row.label} className="flex items-baseline gap-3">
-          <span className="w-[4.6rem] shrink-0 font-mono text-[11px] text-ink-faint">{row.label}</span>
-          <ul className="flex flex-wrap gap-1.5">
-            {row.items.map((item) => (
-              <motion.li
-                key={item}
-                variants={drop}
-                whileHover={calm ? undefined : { y: -2 }}
-                className="cursor-default rounded-full border border-rule bg-surface-2/70 px-2.5 py-[3px] font-mono text-[12px] leading-[1.45] text-ink-soft transition-colors duration-200 hover:border-gold/50 hover:text-gold"
-              >
-                {item}
-              </motion.li>
-            ))}
-          </ul>
-        </div>
-      ))}
-    </motion.div>
-  );
-}
-
 export default function Home({ posts }: { posts: BlogPost[] }) {
   const { pos: pagoda } = useArt("pagoda");
   const easing: Easing = [0.25, 0.1, 0.25, 1];
@@ -128,7 +89,7 @@ export default function Home({ posts }: { posts: BlogPost[] }) {
             />
           </Draggable>
 
-        <header className="flex items-center gap-4 sm:gap-5 mb-5">
+        <header className="flex items-center gap-4 sm:gap-5 mb-7">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="https://avatars.githubusercontent.com/u/178455858?v=4"
@@ -139,18 +100,11 @@ export default function Home({ posts }: { posts: BlogPost[] }) {
             <h1 className="text-[30px] sm:text-[38px] font-semibold text-ink tracking-tight leading-none mb-1.5">
               <ScrambleText text="pawan" scrambleDelay={1200} />
             </h1>
-            <a
-              href="https://github.com/Cintu07"
-              target="_blank"
-              rel="noreferrer"
-              className="font-mono text-[12px] sm:text-[12.5px] text-ink-faint tracking-wide hover:text-gold transition-colors"
-            >
-              Cintu07
-            </a>
+            <p className="font-mono text-[12px] sm:text-[12.5px] text-ink-faint tracking-wide text-balance">
+              Cintu07 · rust / c++ · ml compilers &amp; inference
+            </p>
           </div>
         </header>
-
-        <Stack />
 
         <div className="space-y-3.5 text-ink-soft leading-relaxed text-[15.5px] sm:text-[16px] max-w-[62ch]">
           <p>
@@ -177,8 +131,7 @@ export default function Home({ posts }: { posts: BlogPost[] }) {
             , which i built on my own and still run.
           </p>
           <p>
-            i am good at ml infra, databases and inference, and i write rust, go and
-            typescript.
+            i am good at ml compilers and inference, and i write rust and c++.
           </p>
           <p>
             right now i am mostly in gpu kernels and inference internals. rust and c++,
