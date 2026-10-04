@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:studio": "node --import ./scripts/ts-resolve.mjs --test scripts/studio.test.mjs"
+    "test:studio": "node --import ./scripts/ts-resolve.mjs --test scripts/studio.test.mjs scripts/music.test.mjs"
   },
   "dependencies": {
     "@types/react-syntax-highlighter": "^15.5.13",
