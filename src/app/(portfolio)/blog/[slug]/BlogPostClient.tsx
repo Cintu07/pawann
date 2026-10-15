@@ -3,13 +3,37 @@
 import { motion, type Variants, type Easing } from "framer-motion";
 import Link from "next/link";
 import { ChevronLeft, Clock } from "lucide-react";
-import React from "react";
+import React, { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { BlogPost } from "../data";
 import { CAPTION_MARK } from "@/lib/blog-caption";
+
+/** copies a code block. always visible on touch screens, on hover from md up */
+function CopyButton({ text }: { text: string }) {
+  const [state, setState] = useState<"idle" | "done" | "failed">("idle");
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setState("done");
+    } catch {
+      setState("failed");
+    }
+    setTimeout(() => setState("idle"), 1600);
+  };
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      aria-label="copy this code"
+      className="absolute top-2 right-2 z-10 rounded border border-rule bg-surface-2/80 px-2 py-0.5 font-mono text-[11px] text-ink-faint opacity-100 transition-opacity hover:text-ink focus-visible:opacity-100 md:opacity-0 md:group-hover:opacity-100"
+    >
+      {state === "done" ? "copied" : state === "failed" ? "press ctrl c" : "copy"}
+    </button>
+  );
+}
 
 export default function BlogPostClient({ post }: { post: BlogPost }) {
   const minutes = post.minutes ?? Math.max(1, Math.ceil(post.content.trim().split(/\s+/).length / 225));
@@ -103,7 +127,8 @@ export default function BlogPostClient({ post }: { post: BlogPost }) {
               }
 
               return (
-                <div className="my-8 rounded-xl overflow-hidden border border-rule shadow-2xl bg-[#0d0d0d]">
+                <div className="group relative my-8 rounded-xl overflow-hidden border border-rule shadow-2xl bg-[#0d0d0d]">
+                    <CopyButton text={String(children).replace(/\n$/, '')} />
                     <SyntaxHighlighter
                         language={match ? match[1] : 'text'}
                         style={vscDarkPlus}
@@ -135,10 +160,16 @@ export default function BlogPostClient({ post }: { post: BlogPost }) {
               </blockquote>
             ),
             hr: ({node, ...props}) => <hr className="my-12 border-rule" {...props} />,
+            // the blog treats an image's alt text as its caption, so show it here too
             img: ({node, ...props}: any) => (
-                <div className="my-10 rounded-2xl overflow-hidden border border-rule">
-                    <img className="w-full object-contain max-h-[500px]" {...props} alt={props.alt || "blog image"} />
-                </div>
+                <figure className="my-10">
+                    <div className="rounded-2xl overflow-hidden border border-rule">
+                        <img className="w-full h-auto object-contain max-h-[500px]" loading="lazy" {...props} alt={props.alt || "blog image"} />
+                    </div>
+                    {props.alt && (
+                        <figcaption className="mt-3 text-center font-mono text-[12px] leading-relaxed text-ink-faint">{props.alt}</figcaption>
+                    )}
+                </figure>
             ),
             table: ({node, ...props}) => (
               <div className="my-10 w-full overflow-x-auto rounded-2xl border border-rule bg-surface-2/40 shadow-xl">
