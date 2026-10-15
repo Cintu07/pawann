@@ -426,12 +426,15 @@ export function parseFrontmatter(text: string): { meta: Meta; body: string } {
     const i = line.indexOf(":");
     if (i < 0) continue;
     const key = line.slice(0, i).trim();
-    const value = line.slice(i + 1).trim().replace(/^["']|["']$/g, "");
+    // quotes are only a wrapper when they come as a pair. a title that merely ends in one, like
+    // Says "I Don't Know", has to keep it, or opening a post and publishing it again changes it
+    const unquote = (v: string) => /^(["'])([\s\S]*)\1$/.exec(v)?.[2] ?? v;
+    const value = unquote(line.slice(i + 1).trim());
     if (key === "title") meta.title = value;
     else if (key === "date") meta.date = value;
     else if (key === "description") meta.description = value;
     else if (key === "cover") meta.cover = value;
-    else if (key === "tags") meta.tags = value.replace(/^\[|\]$/g, "").split(",").map((t) => t.trim().replace(/^["']|["']$/g, "")).filter(Boolean);
+    else if (key === "tags") meta.tags = value.replace(/^\[|\]$/g, "").split(",").map((t) => unquote(t.trim())).filter(Boolean);
   }
   return { meta, body: text.slice(m[0].length) };
 }

@@ -2,12 +2,12 @@
 
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ChangeEvent, type ClipboardEvent, type DragEvent } from "react";
 import Link from "next/link";
-import { Bold, ChevronLeft, Code, Download, Heading2, Image as ImageIcon, Italic, Link as LinkIcon, Quote, Sparkles, Trash2, Upload, X, Copy, Check } from "lucide-react";
+import { Bold, ChevronLeft, Code, Download, Heading2, Image as ImageIcon, Italic, Link as LinkIcon, Pencil, Quote, Sparkles, Trash2, Upload, X, Copy, Check } from "lucide-react";
 import "./studio.css";
 import Preview from "./Preview";
 import { detectLanguage, fence, looksLikeHtmlDocument, parseFrontmatter, setFenceLang, toMarkdown, type ConvertResult, type Lang } from "@/lib/studio/convert";
 import { buildPostFile, describe, extractSvgs, IMAGE_DIR, readingMinutes, referencedImages, slugFromTitle, slugify, stripLeadingTitle, suggestTags, today } from "@/lib/studio/post";
-import { commitFiles, explain, fileExists, readText, SITE, upsertBook, waitForDeploy, whoami, type BookEntry, type PublishFile } from "@/lib/studio/publish";
+import { commitFiles, explain, listPublished, postPath, readFile, readText, SITE, upsertBook, waitForDeploy, whoami, type BookEntry, type PostRef, type PublishFile } from "@/lib/studio/publish";
 import { clearImages, loadImages, removeImage, saveImage } from "@/lib/studio/store";
 import { entryBytes, pdfTitle, readTgz, summarize } from "@/lib/studio/archive";
 
@@ -25,9 +25,13 @@ interface Fields {
   tags: string;
   tagsSet: boolean;
   cover: string;
+  /** the slug of the published post this draft was opened from, or "" for a new post */
+  origin: string;
+  /** the version of that post's file the draft was read from, so a change made elsewhere is noticed */
+  baseSha: string;
 }
 
-const BLANK: Fields = { title: "", slug: "", slugSet: false, date: "", description: "", descSet: false, tags: "", tagsSet: false, cover: "" };
+const BLANK: Fields = { title: "", slug: "", slugSet: false, date: "", description: "", descSet: false, tags: "", tagsSet: false, cover: "", origin: "", baseSha: "" };
 
 interface Img {
   name: string;
@@ -94,7 +98,8 @@ export default function ConverterClient() {
   const [busy, setBusy] = useState(false);
   const [liveUrls, setLiveUrls] = useState<string[]>([]);
   const [copied, setCopied] = useState(false);
-  const [posts, setPosts] = useState<string[] | null>(null);
+  const [posts, setPosts] = useState<PostRef[] | null>(null);
+  const [postsBusy, setPostsBusy] = useState(false);
   const [kind, setKind] = useState<"post" | "book">("post");
   const [book, setBook] = useState({ title: "", subtitle: "", blurb: "", year: String(new Date().getFullYear()) });
   const [pdf, setPdf] = useState<File | null>(null);
@@ -442,26 +447,36 @@ export default function ConverterClient() {
   // --------------------------------------------------------- existing posts
 
   const listPosts = async () => {
+    setLayout((l) => (l === "preview" ? "split" : l));
+    setPosts([]);
+    setPostsBusy(true);
     try {
-      const res = await fetch(`https://api.github.com/repos/${SITE.owner}/${SITE.repo}/contents/content/posts`);
-      const items = (await res.json()) as { name: string }[];
-      setPosts(items.filter((i) => i.name.endsWith(".md")).map((i) => i.name));
+      setPosts(await listPublished({ token: token.trim() }));
     } catch {
       setPosts([]);
+    } finally {
+      setPostsBusy(false);
     }
   };
 
   const openPost = async (name: string) => {
     if (md.trim() && !confirm("replace the current draft with this post?")) return;
-    const res = await fetch(`https://raw.githubusercontent.com/${SITE.owner}/${SITE.repo}/${SITE.branch}/content/posts/${name}`);
-    const fm = parseFrontmatter(await res.text());
-    setMd(fm.body.trim() + "\n");
-    setF({
-      title: fm.meta.title ?? "", slug: name.replace(/\.md$/, ""), slugSet: true, date: fm.meta.date ?? today(),
-      description: fm.meta.description ?? "", descSet: true, tags: fm.meta.tags?.join(", ") ?? "", tagsSet: true, cover: fm.meta.cover ?? "",
-    });
-    setPosts(null);
-    setReport([`opened ${name} from the blog`]);
+    try {
+      // read through the repo and not a cdn, so what opens is what is on the blog now
+      const file = await readFile({ token: token.trim() }, postPath(name));
+      if (!file) return setReport([`${name} is not on the blog`]);
+      const fm = parseFrontmatter(file.text);
+      setMd(fm.body.trim() + "\n");
+      setF({
+        title: fm.meta.title ?? "", slug: name, slugSet: true, date: fm.meta.date ?? today(),
+        description: fm.meta.description ?? "", descSet: true, tags: fm.meta.tags?.join(", ") ?? "", tagsSet: true, cover: fm.meta.cover ?? "",
+        origin: name, baseSha: file.sha,
+      });
+      setPosts(null);
+      setReport([`editing ${name}. publish updates it in place`]);
+    } catch (err) {
+      setReport([explain(err)]);
+    }
   };
 
   // --------------------------------------------------------------- output
@@ -505,7 +520,7 @@ export default function ConverterClient() {
       const used = new Set(referencedImages(svg.markdown));
       if (f.cover.startsWith(IMAGE_DIR)) used.add(f.cover.slice(IMAGE_DIR.length));
 
-      const path = `content/posts/${slug}.md`;
+      const path = postPath(slug);
       const files: PublishFile[] = [{ path, content: buildPostFile({
         title, slug, date: f.date || today(), description, tags: tags.split(",").map((t) => t.trim()).filter(Boolean), cover: f.cover, body: svg.markdown,
       }) }];
@@ -516,14 +531,28 @@ export default function ConverterClient() {
       }
       for (const s of svg.files) files.push({ path: `assets/img/${s.name}`, content: s.content });
 
-      const exists = await fileExists(target, path);
-      if (exists && !confirm(`${slug} is already published. replace it?`)) {
-        say("cancelled");
-        return;
+      const origin = f.origin;
+      const moving = Boolean(origin) && origin !== slug;
+      const current = await readFile(target, path);
+      if (moving) {
+        // moving onto a post that exists would destroy it, so that is never a replace
+        if (current) return say(`${slug} is another post that is already on the blog. pick a different slug`);
+        if (!confirm(`this moves the post from /posts/${origin}/ to /posts/${slug}/. the old link stops working. continue?`)) return say("cancelled");
+        if (await readFile(target, postPath(origin))) files.push({ path: postPath(origin), content: null });
+      } else if (current) {
+        const changedElsewhere = origin === slug && f.baseSha && current.sha !== f.baseSha;
+        const question = changedElsewhere
+          ? `${slug} changed on the blog after you opened it. publish over those changes?`
+          : origin === slug ? "" : `${slug} is already published. replace it?`;
+        if (question && !confirm(question)) return say("cancelled");
       }
       say(`committing ${files.length} file${files.length > 1 ? "s" : ""}`);
-      const done = await commitFiles(target, `${exists ? "update post" : "post"}: ${title.trim()}`, files);
+      const message = moving ? `move post: ${origin} to ${slug}` : `${current ? "update post" : "post"}: ${title.trim()}`;
+      const done = await commitFiles(target, message, files);
       say(`committed ${done.sha.slice(0, 7)}`);
+      // from here on this draft is that post, so the next publish is an update that knows what it replaces
+      const written = await readFile(target, path).catch(() => null);
+      set({ origin: slug, baseSha: written?.sha ?? "" });
 
       const result = await waitForDeploy(target, done.sha, say);
       setLiveUrls([`${SITE.url}/posts/${slug}/`]);
@@ -627,6 +656,7 @@ export default function ConverterClient() {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <button className={btn} onClick={listPosts}><Pencil className="w-3.5 h-3.5" /> edit a post</button>
           <button className={btn} onClick={() => fileInput.current?.click()}><Upload className="w-3.5 h-3.5" /> import</button>
           <button className={btn} onClick={tidy}><Sparkles className="w-3.5 h-3.5" /> tidy</button>
           <button className={btn} onClick={copyMarkdown}>{copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />} copy md</button>
@@ -655,16 +685,34 @@ export default function ConverterClient() {
               <button className={tool} title="code. select text first and the language is detected" onClick={fenceSelection}><Code className="w-4 h-4" /></button>
               <button className={tool} title="add images" onClick={() => imageInput.current?.click()}><ImageIcon className="w-4 h-4" /></button>
               <div className="ml-auto flex items-center gap-1">
-                <button className="font-mono text-[11px] text-ink-faint hover:text-gold px-2 cursor-pointer" onClick={listPosts}>open a post</button>
+                <button className="font-mono text-[11px] text-ink-faint hover:text-gold px-2 cursor-pointer" onClick={listPosts}>edit a post</button>
                 {md && <button className={`${tool} hover:!text-red-700`} title="clear draft" onClick={clearAll}><Trash2 className="w-4 h-4" /></button>}
               </div>
             </div>
 
+            {f.origin && (
+              <div className="px-3 py-1.5 border-b border-rule bg-surface-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[12px] text-ink-soft">
+                <span>
+                  editing{" "}
+                  <a className="text-gold underline" href={`${SITE.url}/posts/${f.origin}/`} target="_blank" rel="noreferrer">{f.origin}</a>
+                  , publish updates it in place
+                </span>
+                <button className="ml-auto text-ink-faint hover:text-gold cursor-pointer" onClick={() => set({ origin: "", baseSha: "" })}>stop editing</button>
+              </div>
+            )}
+
             {posts && (
-              <div className="px-3 py-2 border-b border-rule bg-surface-2 flex flex-wrap gap-2 font-mono text-[12px]">
-                {posts.length === 0 && <span className="text-ink-faint">no posts found</span>}
-                {posts.map((p) => <button key={p} onClick={() => openPost(p)} className="text-gold hover:underline cursor-pointer">{p.replace(/\.md$/, "")}</button>)}
-                <button onClick={() => setPosts(null)} className="ml-auto text-ink-faint cursor-pointer"><X className="w-3.5 h-3.5" /></button>
+              <div className="px-3 py-2 border-b border-rule bg-surface-2 font-mono text-[12px] space-y-1.5 max-h-60 overflow-y-auto">
+                <div className="flex items-center justify-between text-ink-faint">
+                  <span>{postsBusy ? "loading the blog's posts..." : posts.length ? "pick a post to edit" : "no posts found"}</span>
+                  <button onClick={() => setPosts(null)} className="cursor-pointer" title="close"><X className="w-3.5 h-3.5" /></button>
+                </div>
+                {posts.map((p) => (
+                  <button key={p.slug} onClick={() => openPost(p.slug)} className="flex w-full items-baseline gap-3 text-left hover:underline cursor-pointer">
+                    <span className="shrink-0 text-ink-faint">{p.date || "new"}</span>
+                    <span className="truncate text-gold">{p.title}</span>
+                  </button>
+                ))}
               </div>
             )}
 
@@ -742,6 +790,11 @@ export default function ConverterClient() {
               <div><label className={label}>slug</label><input className={field} value={slug} onChange={(e) => set({ slug: slugify(e.target.value), slugSet: true })} /></div>
               <div><label className={label}>date</label><input className={field} type="date" value={f.date} onChange={(e) => set({ date: e.target.value })} /></div>
             </div>
+            {f.origin && slug !== f.origin && (
+              <p className="font-mono text-[11px] text-red-700 leading-relaxed">
+                a new slug moves the post to /posts/{slug}/ and the old link, /posts/{f.origin}/, stops working.
+              </p>
+            )}
             <div><label className={label}>description</label><textarea className={`${field} resize-none`} rows={3} value={description} onChange={(e) => set({ description: e.target.value, descSet: true })} /></div>
             <div><label className={label}>tags, comma separated</label><input className={field} value={tags} onChange={(e) => set({ tags: e.target.value, tagsSet: true })} /></div>
             <div>
@@ -802,7 +855,7 @@ export default function ConverterClient() {
             </div>
 
             <button disabled={busy} onClick={kind === "post" ? publish : publishBook} className="w-full py-2.5 rounded bg-ink text-bg font-mono text-[13px] hover:bg-gold transition-colors disabled:opacity-50 cursor-pointer">
-              {busy ? "publishing..." : kind === "post" ? "publish the post" : "publish the book"}
+              {busy ? "publishing..." : kind === "post" ? (f.origin ? "update the post" : "publish the post") : "publish the book"}
             </button>
 
             {log.length > 0 && (

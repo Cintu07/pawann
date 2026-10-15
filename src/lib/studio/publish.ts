@@ -11,7 +11,8 @@ export const SITE = {
 
 export interface PublishFile {
   path: string;
-  content: string | Uint8Array;
+  /** null removes the file, which is how a renamed post leaves its old address */
+  content: string | Uint8Array | null;
 }
 
 export interface Target {
@@ -40,6 +41,8 @@ function toBase64(bytes: Uint8Array): string {
 
 const bytesOf = (c: string | Uint8Array) => (typeof c === "string" ? new TextEncoder().encode(c) : c);
 
+export const postPath = (slug: string) => `content/posts/${slug}.md`;
+
 function client(t: Target, f: Fetch = fetch) {
   const owner = t.owner ?? SITE.owner;
   const repo = t.repo ?? SITE.repo;
@@ -49,7 +52,8 @@ function client(t: Target, f: Fetch = fetch) {
     const res = await f(base + path, {
       ...init,
       headers: {
-        Authorization: `Bearer ${t.token}`,
+        // the blog repo is public, so reading it works without a token. an empty one must not be sent as a bad one
+        ...(t.token ? { Authorization: `Bearer ${t.token}` } : {}),
         Accept: "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
         ...(init.body ? { "Content-Type": "application/json" } : {}),
@@ -94,17 +98,56 @@ export async function fileExists(t: Target, path: string, f: Fetch = fetch): Pro
   }
 }
 
-/** a text file from the blog repo, or null when it does not exist */
-export async function readText(t: Target, path: string, f: Fetch = fetch): Promise<string | null> {
+/** a text file from the blog repo with the sha of the version read, or null when it does not exist */
+export async function readFile(t: Target, path: string, f: Fetch = fetch): Promise<{ text: string; sha: string } | null> {
   const { call, branch } = client(t, f);
   try {
-    const file = await call<{ content: string }>(`/contents/${path}?ref=${branch}`);
+    const file = await call<{ content: string; sha: string }>(`/contents/${path}?ref=${branch}`);
     const binary = atob(file.content.replace(/\n/g, ""));
-    return new TextDecoder().decode(Uint8Array.from(binary, (ch) => ch.charCodeAt(0)));
+    return { text: new TextDecoder().decode(Uint8Array.from(binary, (ch) => ch.charCodeAt(0))), sha: file.sha };
   } catch (err) {
     if (err instanceof GitHubError && err.status === 404) return null;
     throw err;
   }
+}
+
+/** a text file from the blog repo, or null when it does not exist */
+export async function readText(t: Target, path: string, f: Fetch = fetch): Promise<string | null> {
+  return (await readFile(t, path, f))?.text ?? null;
+}
+
+export interface PostRef {
+  slug: string;
+  title: string;
+  date: string;
+}
+
+/**
+ * The posts on the blog, newest first. The repo's own listing is the truth, because posts.json only
+ * learns of a post after the build. posts.json then lends the titles and dates, and carries the list
+ * alone if the repo cannot be listed.
+ */
+export async function listPublished(t: Target, f: Fetch = fetch): Promise<PostRef[]> {
+  const known = new Map<string, PostRef>();
+  try {
+    const res = await f(`${SITE.url}/posts.json`);
+    if (res.ok) {
+      for (const p of (await res.json()) as PostRef[]) {
+        if (p && typeof p.slug === "string") known.set(p.slug, { slug: p.slug, title: p.title ?? p.slug, date: p.date ?? "" });
+      }
+    }
+  } catch { /* the repo listing below still works */ }
+
+  let slugs: string[] | null = null;
+  try {
+    const { call, branch } = client(t, f);
+    const items = await call<{ name: string; type: string }[]>(`/contents/content/posts?ref=${branch}`);
+    slugs = items.filter((i) => i.type === "file" && i.name.endsWith(".md")).map((i) => i.name.slice(0, -3));
+  } catch { /* rate limited or offline: posts.json alone */ }
+
+  const all = (slugs ?? [...known.keys()]).map((slug) => known.get(slug) ?? { slug, title: slug, date: "" });
+  // an ISO date sorts as text; a post posts.json has not met yet is newer than anything it has
+  return all.sort((a, b) => (b.date || "9999").localeCompare(a.date || "9999") || a.slug.localeCompare(b.slug));
 }
 
 export interface BookEntry {
@@ -153,11 +196,13 @@ export async function commitFiles(t: Target, message: string, files: PublishFile
   // a blob does not depend on where the branch is, so every file goes up once, a few at a time,
   // and a push race below costs a new commit and not another upload of a 30 MB bundle
   const entries = await inPool(files, 4, async (file) => {
+    // a null sha in a tree entry deletes the path
+    if (file.content === null) return { path: file.path, mode: "100644", type: "blob", sha: null as string | null };
     const blob = await call<{ sha: string }>("/git/blobs", {
       method: "POST",
       body: JSON.stringify({ content: toBase64(bytesOf(file.content)), encoding: "base64" }),
     });
-    return { path: file.path, mode: "100644", type: "blob", sha: blob.sha };
+    return { path: file.path, mode: "100644", type: "blob", sha: blob.sha as string | null };
   });
 
   for (let attempt = 0; ; attempt++) {

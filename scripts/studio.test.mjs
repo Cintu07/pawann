@@ -583,3 +583,83 @@ test("files go up a few at a time, the tree keeps their order, and a push race d
   assert.equal(refCalls, 2, "and the race was retried from the new head");
   assert.deepEqual(posted[0].tree.map((e) => [e.path, e.sha]), files.map((x) => [x.path, "blob-of-" + x.content]));
 });
+
+// ---------------------------------------------------------------- editing a post that is already published
+
+import { readFile, listPublished } from "../src/lib/studio/publish.ts";
+
+test("a file with a null content is deleted in the same commit, and never uploaded", async () => {
+  const { f, calls } = fakeGitHub();
+  await commitFiles({ token: "tok" }, "move post: a to b", [
+    { path: "content/posts/b.md", content: "---\ntitle: b\n---\nbody" },
+    { path: "content/posts/a.md", content: null },
+  ], f);
+  assert.equal(calls.filter((c) => c.path === "/git/blobs").length, 1, "only the new file is uploaded");
+  const tree = calls.find((c) => c.path === "/git/trees").body.tree;
+  assert.deepEqual(tree.map((e) => [e.path, e.sha === null]), [["content/posts/b.md", false], ["content/posts/a.md", true]]);
+});
+
+test("readFile gives the text and the version it came from, and reads the public repo without a token", async () => {
+  const seen = [];
+  const text = "---\ntitle: héllo\n---\nbody";
+  const f = async (url, init = {}) => {
+    seen.push(init.headers ?? {});
+    return new Response(JSON.stringify({ content: Buffer.from(text).toString("base64"), sha: "abc123" }), { status: 200 });
+  };
+  assert.deepEqual(await readFile({ token: "" }, "content/posts/x.md", f), { text, sha: "abc123" });
+  assert.equal("Authorization" in seen[0], false, "an empty token is no header, not a bad one");
+  await readFile({ token: "tok" }, "content/posts/x.md", f);
+  assert.equal(seen[1].Authorization, "Bearer tok");
+});
+
+test("the post list is the repo's, with titles and dates from posts.json, newest first", async () => {
+  const f = async (url) => {
+    if (url === "https://cintu07.github.io/posts.json") {
+      return new Response(JSON.stringify([
+        { slug: "old-one", title: "an old one", date: "2025-10-24" },
+        { slug: "the-interface-tax", title: "the inference tax", date: "2026-10-04" },
+      ]), { status: 200 });
+    }
+    assert.match(url, /\/contents\/content\/posts\?ref=main$/);
+    return new Response(JSON.stringify([
+      { name: "old-one.md", type: "file" },
+      { name: "the-interface-tax.md", type: "file" },
+      { name: "fresh-from-the-sandbox.md", type: "file" },
+      { name: "notes.txt", type: "file" },
+    ]), { status: 200 });
+  };
+  const list = await listPublished({ token: "" }, f);
+  assert.deepEqual(list.map((p) => [p.slug, p.title, p.date]), [
+    ["fresh-from-the-sandbox", "fresh-from-the-sandbox", ""],
+    ["the-interface-tax", "the inference tax", "2026-10-04"],
+    ["old-one", "an old one", "2025-10-24"],
+  ]);
+});
+
+test("when the repo cannot be listed the blog's own posts.json is the list", async () => {
+  const f = async (url) => url.endsWith("/posts.json")
+    ? new Response(JSON.stringify([{ slug: "a", title: "A", date: "2026-01-01" }]), { status: 200 })
+    : new Response('{"message":"API rate limit exceeded"}', { status: 403 });
+  assert.deepEqual(await listPublished({ token: "" }, f), [{ slug: "a", title: "A", date: "2026-01-01" }]);
+});
+
+test("a title that ends in a quote keeps it, and a title wrapped in quotes loses only the wrapper", () => {
+  assert.equal(parseFrontmatter('---\ntitle: Says "I Don\'t Know"\n---\nx').meta.title, 'Says "I Don\'t Know"');
+  assert.equal(parseFrontmatter('---\ntitle: "quoted"\n---\nx').meta.title, "quoted");
+  assert.deepEqual(parseFrontmatter('---\ntags: ["a", \'b c\', d]\n---\nx').meta.tags, ["a", "b c", "d"]);
+});
+
+test("opening a post and publishing it untouched writes the same file back", () => {
+  const files = [
+    "---\ntitle: the inference tax\ndate: 2026-10-04\ndescription: inference larping maybe?\ntags: gpu, performance, ml compilers\n---\noctober 2026 / pawan\n\nevery perf conversation: starts at the kernel.\n",
+    '---\ntitle: Building a Membership System That Says "I Don\'t Know"\ndate: 2025-10-24\ndescription: a story: with a colon\ntags: go, distributed systems\ncover: /assets/img/styx.png\n---\nbody with `code`\n',
+  ];
+  for (const original of files) {
+    const fm = parseFrontmatter(original);
+    const again = buildPostFile({
+      title: fm.meta.title, slug: "x", date: fm.meta.date, description: fm.meta.description,
+      tags: fm.meta.tags, cover: fm.meta.cover ?? "", body: fm.body.trim() + "\n",
+    });
+    assert.equal(again, original);
+  }
+});
