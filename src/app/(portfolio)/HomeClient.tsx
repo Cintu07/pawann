@@ -93,7 +93,7 @@ export default function Home({ posts }: { posts: BlogPost[] }) {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="https://avatars.githubusercontent.com/u/178455858?v=4"
-            alt="Pawan"
+            alt="Pawan Kalyan"
             className="w-[68px] h-[68px] sm:w-[78px] sm:h-[78px] rounded-full object-cover ring-1 ring-rule-strong shrink-0"
           />
           <div className="min-w-0">

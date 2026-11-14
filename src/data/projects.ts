@@ -16,6 +16,16 @@ export type Project = {
 
 export const projects: Project[] = [
   {
+    name: "seams",
+    description:
+      "a diff viewer for files too big for everything else. the line diff engine is written by hand in x86-64 assembly and again in webassembly, and the view is drawn with webgl. a million-line diff opens in 0.19 s, a 1,218-file pull request is diffed in 255 ms, and github review comments stay in sync both ways.",
+    short: "a diff viewer in hand-written assembly. a million-line diff opens in 0.19 s.",
+    url: "https://cintu07.github.io/seams/",
+    stars: 0,
+    stack: ["x86-64 asm", "webassembly", "webgl"],
+    featured: true,
+  },
+  {
     name: "heresy",
     description:
       "reads a go codebase, works out the rules the code already follows, and flags the few places that break them. nothing to configure. across 16 big go repos and 15,290 files it flagged one site, a real lock leak in minio.",

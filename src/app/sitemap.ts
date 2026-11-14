@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 
-export const BASE_URL = "https://pawann.vercel.app";
+export const BASE_URL = "https://pawann.dev";
 
 // /blog redirects to cintu07.github.io for now (next.config.ts), which has
 // its own sitemap, so the posts are not listed here.

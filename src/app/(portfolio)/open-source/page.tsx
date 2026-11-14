@@ -6,7 +6,8 @@ import OpenSourceClient from "./OpenSourceClient";
 export const revalidate = 3600;
 
 export const metadata = {
-  title: "open source · pawan",
+  title: "open source · pawan kalyan",
+  alternates: { canonical: "/open-source" },
   description:
     "pull requests and issues across repos outside my own. apache/arrow-rs, tinygrad, helix-db, slatedb, nvidia dynamo.",
 };

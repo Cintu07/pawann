@@ -1,0 +1,26 @@
+# Pawan Kalyan (Cintu07)
+
+> Pawan Kalyan, Cintu07 on GitHub, is a self-taught software engineer working on ML infrastructure, inference and databases, previously a founding engineer at Cortex (voice agents for restaurants and clinics). Pull requests merged into tinygrad, apache/arrow-rs, helix-db and others. Writes long posts at https://cintu07.github.io.
+
+## Projects
+
+- [seams](https://cintu07.github.io/seams/): a diff viewer for files too big for everything else. The line diff engine is written by hand in x86-64 assembly and WebAssembly and drawn with WebGL; a million-line diff opens in 0.19 s. CLI, browser library and a GitHub pull request extension. Source: https://github.com/Cintu07/seams
+- [ciot](https://github.com/Cintu07/ciot): CPU inference for ternary neural nets in plain C++ and SIMD, with no dependencies.
+- [hiraishin](https://github.com/Cintu07/hiraishin): lossless speculative decoding for an 8B model on an 8 GB laptop GPU.
+- [heresy](https://github.com/Cintu07/heresy): finds Go code that disagrees with the rest of its codebase.
+- [kerneltrace](https://github.com/Cintu07/kerneltrace): experiments that try to break interpretability claims.
+- [styx](https://github.com/Cintu07/styx): a membership system that answers with a probability instead of yes or no.
+
+## Pages
+
+- [Home](https://pawann.dev/)
+- [Projects](https://pawann.dev/projects)
+- [Open source](https://pawann.dev/open-source): merged pull requests in other people's projects
+- [Experience](https://pawann.dev/experience)
+- [Blog](https://cintu07.github.io/)
+
+## Elsewhere
+
+- GitHub: https://github.com/Cintu07
+- X: https://x.com/pawankalyandev
+- LinkedIn: https://www.linkedin.com/in/pavankalyan-kolagani/

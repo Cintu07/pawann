@@ -5,6 +5,40 @@ import Script from 'next/script';
 import "./globals.css";
 import BackgroundMusic from "@/components/BackgroundMusic";
 
+const SITE = "https://pawann.dev";
+// who this site is about, for search and answer engines. sameAs ties this site, the blog, github, x and
+// linkedin together as one person, so a search for any of the names lands on the same one.
+const PERSON = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Person",
+      "@id": `${SITE}/#person`,
+      name: "Pawan Kalyan",
+      alternateName: ["pawan", "Cintu07", "pawann", "pawankalyandev"],
+      url: SITE,
+      image: "https://avatars.githubusercontent.com/u/178455858?v=4",
+      description:
+        "self-taught software engineer working on ml infra, inference and databases. built seams, a diff viewer written in x86-64 assembly and webassembly, and merges pull requests into tinygrad and apache arrow-rs.",
+      knowsAbout: ["ML infrastructure", "inference", "ML compilers", "databases", "Rust", "C++", "CUDA", "x86-64 assembly", "WebAssembly"],
+      sameAs: [
+        "https://github.com/Cintu07",
+        "https://cintu07.github.io/",
+        "https://x.com/pawankalyandev",
+        "https://www.linkedin.com/in/pavankalyan-kolagani/",
+      ],
+    },
+    {
+      "@type": "WebSite",
+      "@id": `${SITE}/#website`,
+      name: "pawan kalyan",
+      url: SITE,
+      author: { "@id": `${SITE}/#person` },
+      inLanguage: "en",
+    },
+  ],
+};
+
 // the description carries a pr count, and a hand-typed one goes stale the
 // week after you type it. this reads the same live figure the open source
 // page uses, so a merge updates the meta description on the next revalidate.
@@ -18,21 +52,23 @@ export async function generateMetadata(): Promise<Metadata> {
       : "self taught. i send patches to projects i do not own, apache/arrow-rs and tinygrad among them.";
 
   return {
-    metadataBase: new URL("https://pawann.vercel.app"),
-    title: "pawan",
+    metadataBase: new URL(SITE),
+    title: "pawan kalyan (cintu07) · ml infra, inference, databases",
     description: claim,
+    authors: [{ name: "Pawan Kalyan", url: SITE }],
     openGraph: {
-      title: "pawan",
+      title: "pawan kalyan",
       description: claim,
-      url: "https://pawann.vercel.app",
-      siteName: "pawan",
+      url: SITE,
+      siteName: "pawan kalyan",
       images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "Pawan Portfolio" }],
       locale: "en_US",
       type: "website",
     },
     twitter: {
       card: "summary_large_image",
-      title: "pawan",
+      title: "pawan kalyan",
+      creator: "@pawankalyandev",
       description: claim,
       images: ["/og-image.png"],
     },
@@ -54,6 +90,10 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${cabinetGrotesk.variable}`}>
       <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(PERSON).replace(/</g, "\\u003c") }}
+        />
       </head>
       <body className="bg-bg text-ink antialiased selection:bg-gold-bright/30 selection:text-ink overflow-x-hidden">
         {process.env.NEXT_PUBLIC_GA_ID && (

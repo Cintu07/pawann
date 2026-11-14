@@ -5,8 +5,9 @@ import ProjectsClient from "./ProjectsClient";
 export const revalidate = 3600;
 
 export const metadata = {
-  title: "projects · pawan",
-  description: "things i built. ternary cpu inference, moe offload, a postgres wire proxy.",
+  title: "projects · pawan kalyan",
+  description: "things i built. seams, a diff viewer in hand-written assembly; ternary cpu inference; moe offload; a postgres wire proxy.",
+  alternates: { canonical: "/projects" },
 };
 
 export default async function ProjectsPage() {
