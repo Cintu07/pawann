@@ -71,6 +71,9 @@ export type Contributions = {
   live: boolean;
 };
 
+// repos whose pull requests and issues don't show on the open source page (owner/name, lower case)
+const HIDE_CONTRIBUTIONS = new Set(["graphify-labs/graphify"]);
+
 export async function getContributions(): Promise<Contributions> {
   const data = await gh<{ items: SearchItem[] }>(
     `https://api.github.com/search/issues?q=author:${USER}&per_page=100&sort=created&order=desc`
@@ -98,8 +101,8 @@ export async function getContributions(): Promise<Contributions> {
         note: notes[`${repo}#${i.number}`],
       };
     })
-    // my own repos are not contributions
-    .filter((i) => !i.repo.startsWith(`${USER}/`));
+    // my own repos are not contributions, and repos i'd rather not list are left out
+    .filter((i) => !i.repo.startsWith(`${USER}/`) && !HIDE_CONTRIBUTIONS.has(i.repo.toLowerCase()));
 
   // stars per repo, so the strongest names sort to the top
   const repoNames = [...new Set(items.map((i) => i.repo))];
